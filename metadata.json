@@ -1,0 +1,7 @@
+{
+  "name": "CHSA - Ciências Humanas e Sociais Aplicadas - Tocantins",
+  "description": "Plataforma integrada de Geografia, História, Filosofia e Sociologia para o Ensino Médio, alinhada à BNCC e ao DCT-TO.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
