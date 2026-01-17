@@ -1,4 +1,3 @@
-
 export type Subject = 'filosofia' | 'geografia' | 'historia' | 'sociologia';
 
 export interface Activity {
@@ -21,7 +20,8 @@ export interface Lesson {
 
 export interface Bimester {
   id: number;
-  title: string;
+  title: string; // Título padrão/genérico
+  subjectTitles?: Record<string, string>; // Títulos específicos por matéria
   lessons: Lesson[];
 }
 

@@ -1,8 +1,6 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { curriculumData, subjectsInfo } from '../data';
-// Added ChevronRight to the imports from lucide-react
 import { Book, ArrowLeft, ShieldAlert, ChevronRight } from 'lucide-react';
 import { Subject } from '../types';
 
@@ -60,10 +58,13 @@ export const GradeView: React.FC = () => {
             const filteredLessons = bimester.lessons.filter(l => l.subject === subjectKey);
             if (filteredLessons.length === 0) return null;
 
+            // Busca o título específico da disciplina ou usa o título genérico do bimestre
+            const displayTitle = bimester.subjectTitles?.[subjectKey] || bimester.title;
+
             return (
               <div key={bimester.id} className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
                 <div className="bg-slate-50 px-8 py-4 border-b">
-                   <h3 className="font-bold text-slate-800">{bimester.title}</h3>
+                   <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">{displayTitle}</h3>
                 </div>
                 <div className="divide-y">
                   {filteredLessons.map((lesson) => (
