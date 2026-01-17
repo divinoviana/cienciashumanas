@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Send, CheckCircle, Database, Loader2 } from 'lucide-react';
 import { AIResponse, evaluateActivities } from '../services/aiService';
 import { supabase } from '../lib/supabase';
+import { Subject } from '../types';
 
 export interface SubmissionItem {
   activityTitle: string;
@@ -15,6 +16,7 @@ interface Props {
   schoolClass: string;
   submissionDate: string;
   lessonTitle: string;
+  subject: Subject; // Adicionado subject aqui
   submissionData: SubmissionItem[];
   aiData?: AIResponse | null;
   theory: string;
@@ -25,6 +27,7 @@ export const SubmissionBar: React.FC<Props> = ({
   schoolClass, 
   submissionDate,
   lessonTitle, 
+  subject,
   submissionData,
   aiData,
   theory
@@ -33,13 +36,11 @@ export const SubmissionBar: React.FC<Props> = ({
   const [dbStatus, setDbStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const handleInternalSend = async () => {
-    // Verificação de preenchimento
     if (!studentName?.trim() || submissionData.length === 0) {
       alert("Por favor, responda as atividades antes de enviar.");
       return;
     }
 
-    // Se já salvou, evita duplicidade acidental mas permite se o usuário quiser
     if (dbStatus === 'saved') {
       if (!confirm("Você já enviou esta atividade. Deseja enviar uma nova versão?")) return;
     }
@@ -49,37 +50,36 @@ export const SubmissionBar: React.FC<Props> = ({
     
     let currentAIData = aiData;
     try {
-      // Se não gerou feedback de IA ainda, gera agora para salvar junto
       if (!currentAIData) {
         const q = submissionData.map(item => ({ question: item.question, answer: item.answer }));
         currentAIData = await evaluateActivities(lessonTitle, theory, q);
       }
 
-      // Cálculo da nota média baseada na IA (apenas sugestão para o professor)
       const avgScore = currentAIData?.corrections?.length > 0 
         ? currentAIData.corrections.reduce((acc, c) => acc + (Number(c.score) || 0), 0) / currentAIData.corrections.length 
         : 0;
 
-      // Gravação no Supabase
+      // Agora enviamos o campo 'subject' para o banco
       const { error } = await supabase.from('submissions').insert([{
         student_name: studentName.trim(),
         school_class: schoolClass.trim(),
         lesson_title: lessonTitle.trim(),
+        subject: subject, // CRÍTICO: Identifica a disciplina para o professor
         submission_date: submissionDate || new Date().toISOString(),
         content: submissionData, 
         ai_feedback: currentAIData,
         score: avgScore,
-        teacher_feedback: null // Inicializa explicitamente como nulo
+        teacher_feedback: null
       }]);
 
       if (error) throw error;
 
       setDbStatus('saved');
-      alert("Atividade enviada com sucesso! O professor já pode visualizar seu trabalho.");
+      alert(`Atividade de ${subject.toUpperCase()} enviada com sucesso!`);
     } catch (error: any) {
-      console.error("Erro no envio para o Supabase:", error);
+      console.error("Erro no envio:", error);
       setDbStatus('error');
-      alert("Houve um erro ao salvar sua atividade no banco de dados: " + (error.message || "Erro desconhecido"));
+      alert("Erro ao salvar: " + (error.message || "Erro desconhecido"));
     } finally {
       setIsGenerating(false);
     }
@@ -97,7 +97,7 @@ export const SubmissionBar: React.FC<Props> = ({
             <p className="text-xs font-bold text-slate-600">
               {dbStatus === 'saving' ? 'Gravando no servidor...' : 
                dbStatus === 'saved' ? 'Atividade Sincronizada!' : 
-               dbStatus === 'error' ? 'Falha na Gravação' : 'Pronto para enviar'}
+               dbStatus === 'error' ? 'Falha na Gravação' : `Enviar p/ Prof. de ${subject}`}
             </p>
           </div>
         </div>
@@ -107,8 +107,8 @@ export const SubmissionBar: React.FC<Props> = ({
           disabled={isGenerating} 
           className={`relative overflow-hidden font-bold py-3.5 px-8 rounded-2xl flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-lg ${
             dbStatus === 'saved' 
-            ? 'bg-green-600 hover:bg-green-700 text-white shadow-green-200' 
-            : 'bg-tocantins-blue hover:bg-blue-800 text-white shadow-blue-200'
+            ? 'bg-green-600 hover:bg-green-700 text-white' 
+            : 'bg-tocantins-blue hover:bg-blue-800 text-white'
           }`}
         >
           {isGenerating ? <Loader2 className="animate-spin" size={18}/> : <Send size={18}/>}

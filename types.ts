@@ -32,8 +32,3 @@ export interface Grade {
   color: string;
   bimesters: Bimester[];
 }
-
-export interface StudentResponse {
-  studentName: string;
-  answers: Record<string, string>;
-}

@@ -13,7 +13,6 @@ export const LessonView: React.FC = () => {
   const navigate = useNavigate();
   const [student, setStudent] = useState<any>(null);
 
-  // Estados principais
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -29,7 +28,6 @@ export const LessonView: React.FC = () => {
     }
   }, [navigate]);
 
-  // Reset de estado quando a aula muda (ex: vindo do botão "Refazer")
   useEffect(() => {
     setAnswers({});
     setAiData(null);
@@ -91,7 +89,7 @@ export const LessonView: React.FC = () => {
       const result = await evaluateActivities(foundLesson!.title, foundLesson!.theory, subData.map(d => ({question: d.question, answer: d.answer})));
       setAiData(result);
     } catch (e) { 
-      alert("Erro na correção da IA. Você pode enviar a atividade mesmo assim."); 
+      alert("Erro na correção da IA."); 
       setIsAIModalOpen(false); 
     }
     finally { setAiLoading(false); }
@@ -101,15 +99,6 @@ export const LessonView: React.FC = () => {
     <div className="min-h-screen bg-slate-50 pb-32">
       <AIFeedbackModal isOpen={isAIModalOpen} isLoading={aiLoading} data={aiData} onClose={() => setIsAIModalOpen(false)} />
       
-      {/* Botão Flutuante de Voltar para Home - Útil para scrolls longos */}
-      <Link 
-        to="/" 
-        className="fixed top-20 left-4 z-40 bg-white/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-slate-200 text-slate-600 hover:text-tocantins-blue hover:scale-110 transition-all md:hidden"
-        title="Voltar ao Início"
-      >
-        <Home size={20} />
-      </Link>
-
       <div className="relative h-60 w-full overflow-hidden bg-slate-800">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/30 to-slate-50"></div>
         <div className="relative z-10 container mx-auto px-4 h-full flex flex-col justify-center max-w-4xl">
@@ -164,17 +153,6 @@ export const LessonView: React.FC = () => {
           >
             <Sparkles size={20} /> Analisar Respostas com IA (Opcional)
           </button>
-          
-          <p className="text-center text-xs text-slate-400">
-            Você pode revisar suas respostas com a IA antes de enviar definitivamente para o professor.
-          </p>
-        </div>
-
-        {/* Botão de retorno adicional no fim do conteúdo */}
-        <div className="flex justify-center pb-8">
-          <Link to="/" className="flex items-center gap-2 text-slate-400 hover:text-tocantins-blue transition-colors font-bold text-sm">
-            <Home size={18} /> Voltar para a Página Inicial
-          </Link>
         </div>
       </div>
 
@@ -184,6 +162,7 @@ export const LessonView: React.FC = () => {
           schoolClass={student.school_class} 
           submissionDate={getTodayString()} 
           lessonTitle={foundLesson.title} 
+          subject={foundLesson.subject} // Agora passa a disciplina correta
           submissionData={getSubmissionData()} 
           aiData={aiData} 
           theory={foundLesson.theory} 
