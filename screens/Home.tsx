@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { subjectsInfo } from '../data';
+import { TEACHER_INFO } from '../data_admin';
 import { BookOpen, GraduationCap, ChevronRight, UserCircle } from 'lucide-react';
 import { Subject } from '../types';
 
@@ -52,12 +53,11 @@ export const Home: React.FC = () => {
           })}
         </div>
 
-        {/* Info Professor - Imagem Removida para Privacidade */}
         <div className="mt-16 bg-white rounded-3xl p-10 border border-slate-200 shadow-sm text-center">
           <div className="max-w-2xl mx-auto">
             <h4 className="text-2xl font-bold text-slate-800 mb-4">Coordenação Pedagógica</h4>
             <p className="text-slate-500 leading-relaxed">
-              Este portal integra as disciplinas de Ciências Humanas sob orientação do Prof. Me. Divino Ribeiro Viana e equipe docente do Colégio Estadual Frederico Pedreira Neto. 
+              Este portal integra as disciplinas de Ciências Humanas sob orientação do <span className="text-slate-800 font-bold">{TEACHER_INFO.name}</span> e equipe docente do <span className="text-slate-800 font-bold">{TEACHER_INFO.institution}</span>. 
               O objetivo é facilitar o acesso ao material didático e o envio de atividades de forma organizada e segura.
             </p>
           </div>

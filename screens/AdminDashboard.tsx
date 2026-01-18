@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { subjectsInfo } from '../data';
+import { subjectsInfo, ADMIN_PASSWORDS, TEACHER_INFO } from '../data';
 import { Subject } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -10,13 +10,6 @@ import {
   ChevronDown, ChevronUp, Star, CheckCircle2,
   ArrowLeft, Send, RefreshCw, LayoutGrid
 } from 'lucide-react';
-
-const ADMIN_PASSWORDS: Record<string, string> = {
-  filosofia: '3614526312',
-  geografia: 'geo2026',
-  historia: 'his2026',
-  sociologia: 'soc2026'
-};
 
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -34,7 +27,6 @@ export const AdminDashboard: React.FC = () => {
   const [feedbacks, setFeedbacks] = useState<Record<string, string>>({});
   const [savingFeedback, setSavingFeedback] = useState<string | null>(null);
 
-  // Chat States
   const [activeChatStudent, setActiveChatStudent] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
@@ -67,11 +59,9 @@ export const AdminDashboard: React.FC = () => {
         if (s.teacher_feedback) initialFeedbacks[s.id] = s.teacher_feedback;
       });
       setFeedbacks(initialFeedbacks);
-
     } catch (e) { 
       console.error(e);
-    }
-    finally { setLoading(false); }
+    } finally { setLoading(false); }
   };
 
   useEffect(() => {
@@ -166,7 +156,6 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col lg:flex-row overflow-hidden">
-      {/* Sidebar - Desktop Only */}
       <aside className="w-64 bg-slate-900 text-white p-6 hidden lg:flex flex-col shrink-0">
         <div className="mb-8">
            <button onClick={() => navigate('/')} className="flex items-center gap-2 text-slate-400 hover:text-white text-[10px] font-black mb-6 uppercase tracking-widest">
@@ -175,6 +164,7 @@ export const AdminDashboard: React.FC = () => {
            <div className="text-center bg-white/5 p-4 rounded-2xl border border-white/10">
              <div className={`w-12 h-12 ${subjectInfo.color} rounded-xl flex items-center justify-center mx-auto mb-2 text-2xl shadow-lg`}>{subjectInfo.icon}</div>
              <h2 className="font-bold text-sm">Prof. de {subjectInfo.name}</h2>
+             <p className="text-[9px] text-slate-500 truncate mt-1">{TEACHER_INFO.name}</p>
            </div>
         </div>
         <nav className="space-y-2 flex-1">
@@ -186,7 +176,6 @@ export const AdminDashboard: React.FC = () => {
         <button onClick={() => setLoggedSubject(null)} className="mt-auto p-3 bg-red-500/10 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest">Desconectar</button>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <header className="bg-white border-b p-4 lg:p-6 flex flex-col gap-4 shadow-sm z-10">
            <div className="flex justify-between items-center">
@@ -197,7 +186,6 @@ export const AdminDashboard: React.FC = () => {
               <button onClick={() => fetchData(loggedSubject)} className="p-2 text-slate-400 hover:text-tocantins-blue transition"><RefreshCw size={18}/></button>
            </div>
            
-           {/* Navigation Tabs - Visible on Mobile and Desktop Header */}
            <div className="flex gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar">
               <button onClick={() => setTab('submissions')} className={`flex-1 min-w-fit px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${tab === 'submissions' ? 'bg-white text-tocantins-blue shadow-sm' : 'text-slate-500'}`}>Atividades</button>
               <button onClick={() => setTab('messages')} className={`flex-1 min-w-fit px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${tab === 'messages' ? 'bg-white text-tocantins-blue shadow-sm' : 'text-slate-500'}`}>Mensagens</button>

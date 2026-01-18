@@ -9,6 +9,7 @@ import { Contact } from './screens/Contact';
 import { AdminDashboard } from './screens/AdminDashboard';
 import { Login } from './screens/Login';
 import { MyActivities } from './screens/MyActivities';
+import { TEACHER_INFO } from './data_admin';
 import { Mail, Lock } from 'lucide-react';
 
 function App() {
@@ -52,8 +53,8 @@ function App() {
             </div>
 
             <div className="text-center text-xs space-y-1">
-              <p>© 2026 Ciências Humanas e Sociais Aplicadas - Tocantins</p>
-              <p>Docente Responsável: <span className="text-slate-200">Prof. Me. Divino Ribeiro Viana</span></p>
+              <p>© 2026 {TEACHER_INFO.department} - Tocantins</p>
+              <p>{TEACHER_INFO.role}: <span className="text-slate-200">{TEACHER_INFO.name}</span></p>
             </div>
           </div>
         </footer>

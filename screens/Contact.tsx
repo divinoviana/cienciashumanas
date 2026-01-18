@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, ArrowLeft, Send, MessageCircle, CheckCircle, Loader2, UserCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { TEACHER_INFO } from '../data_admin';
 
 export const Contact: React.FC = () => {
   const navigate = useNavigate();
@@ -23,7 +24,6 @@ export const Contact: React.FC = () => {
     setStudent(studentData);
     fetchMessages(studentData.id);
 
-    // Subscribe to new messages
     const channel = supabase
       .channel('schema-db-changes')
       .on('postgres_changes', 
@@ -85,23 +85,21 @@ export const Contact: React.FC = () => {
         </Link>
         <div className="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-full border border-slate-200">
            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-           <span className="text-xs font-bold text-slate-600">Canal Direto com Prof. Divino</span>
+           <span className="text-xs font-bold text-slate-600">Canal Direto com {TEACHER_INFO.name.split(' ')[2]}</span>
         </div>
       </div>
 
       <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden flex flex-col h-[70vh]">
-        {/* Chat Header */}
         <div className="bg-slate-900 p-4 text-white flex items-center gap-4">
           <div className="w-10 h-10 rounded-full bg-tocantins-blue flex items-center justify-center border border-white/20">
             <UserCircle size={24} />
           </div>
           <div>
-            <h3 className="font-bold text-sm">Prof. Me. Divino Ribeiro Viana</h3>
-            <p className="text-[10px] text-slate-400">Geralmente responde em até 24h</p>
+            <h3 className="font-bold text-sm">{TEACHER_INFO.name}</h3>
+            <p className="text-[10px] text-slate-400">{TEACHER_INFO.response_time}</p>
           </div>
         </div>
 
-        {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
           {loadingMessages ? (
             <div className="flex justify-center items-center h-full">
@@ -132,7 +130,6 @@ export const Contact: React.FC = () => {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Chat Input */}
         <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-slate-100 flex gap-2">
           <input 
             type="text"
