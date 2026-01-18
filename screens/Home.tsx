@@ -52,14 +52,14 @@ export const Home: React.FC = () => {
           })}
         </div>
 
-        {/* Info Professor */}
-        <div className="mt-16 bg-white rounded-3xl p-8 border border-slate-200 flex flex-col md:flex-row items-center gap-8 shadow-sm">
-          <div className="w-32 h-32 rounded-full overflow-hidden shrink-0 border-4 border-slate-100">
-            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80" className="w-full h-full object-cover" />
-          </div>
-          <div className="flex-1 text-center md:text-left">
-            <h4 className="text-2xl font-bold text-slate-800">Coordenação Pedagógica</h4>
-            <p className="text-slate-500 mb-4 leading-relaxed">Este portal integra as disciplinas de Ciências Humanas sob orientação do Prof. Me. Divino Ribeiro Viana e equipe docente do Colégio Estadual Frederico Pedreira Neto.</p>
+        {/* Info Professor - Imagem Removida para Privacidade */}
+        <div className="mt-16 bg-white rounded-3xl p-10 border border-slate-200 shadow-sm text-center">
+          <div className="max-w-2xl mx-auto">
+            <h4 className="text-2xl font-bold text-slate-800 mb-4">Coordenação Pedagógica</h4>
+            <p className="text-slate-500 leading-relaxed">
+              Este portal integra as disciplinas de Ciências Humanas sob orientação do Prof. Me. Divino Ribeiro Viana e equipe docente do Colégio Estadual Frederico Pedreira Neto. 
+              O objetivo é facilitar o acesso ao material didático e o envio de atividades de forma organizada e segura.
+            </p>
           </div>
         </div>
       </div>
