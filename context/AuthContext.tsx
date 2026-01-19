@@ -6,6 +6,7 @@ interface AuthContextType {
   teacherSubject: string | null;
   loginStudent: (data: any) => void;
   logoutStudent: () => void;
+  updateStudentData: (newData: any) => void;
   loginTeacher: (subject: string) => void;
   logoutTeacher: () => void;
   isLoading: boolean;
@@ -18,7 +19,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [teacherSubject, setTeacherSubject] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Carrega as sessões de forma independente no início
   useEffect(() => {
     const savedStudent = localStorage.getItem('CHSA_STUDENT_DATA');
     const savedTeacher = sessionStorage.getItem('CHSA_TEACHER_SESSION');
@@ -43,8 +43,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStudent(data);
   };
 
+  const updateStudentData = (newData: any) => {
+    const updated = { ...student, ...newData };
+    localStorage.setItem('CHSA_STUDENT_DATA', JSON.stringify(updated));
+    setStudent(updated);
+  };
+
   const logoutStudent = () => {
-    // Remove APENAS os dados do aluno
     localStorage.removeItem('CHSA_STUDENT_DATA');
     setStudent(null);
   };
@@ -55,7 +60,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logoutTeacher = () => {
-    // Remove APENAS os dados do professor
     sessionStorage.removeItem('CHSA_TEACHER_SESSION');
     setTeacherSubject(null);
   };
@@ -66,6 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       teacherSubject, 
       loginStudent, 
       logoutStudent, 
+      updateStudentData,
       loginTeacher, 
       logoutTeacher,
       isLoading 

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, Loader2, User, Lock } from 'lucide-react';
+import { GraduationCap, Loader2, User, Lock, Camera, Upload, X, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,8 +9,12 @@ export const Login: React.FC = () => {
   const { loginStudent } = useAuth();
   const [isRegistering, setIsRegistering] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
   const navigate = useNavigate();
   
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -20,6 +24,41 @@ export const Login: React.FC = () => {
   });
   
   const [photo, setPhoto] = useState<string | null>(null);
+
+  const startCamera = async () => {
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      alert("Não foi possível acessar a câmera.");
+      setShowCamera(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+    }
+    setShowCamera(false);
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      setPhoto(dataUrl);
+      stopCamera();
+    }
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +83,6 @@ export const Login: React.FC = () => {
         if (error || !data) throw new Error("Email ou senha incorretos.");
         
         loginStudent(data);
-        // Pequeno atraso opcional para garantir persistência do storage
         setTimeout(() => navigate('/'), 100);
       }
     } catch (err: any) {
@@ -87,9 +125,11 @@ export const Login: React.FC = () => {
                       {getClassesByGrade(formData.grade).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                 </div>
-                <div className="flex justify-center p-3 bg-slate-50 rounded-2xl border-dashed border-2 border-slate-200 hover:bg-slate-100 transition-colors">
-                   <label className="text-[10px] font-black text-slate-500 cursor-pointer uppercase tracking-widest">
-                      {photo ? "✅ Foto Selecionada" : "📸 Anexar Foto de Perfil"}
+
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <label className="flex-1 flex items-center justify-center gap-2 p-3 bg-slate-50 rounded-2xl border-dashed border-2 border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer text-[10px] font-black text-slate-500 uppercase">
+                      <Upload size={16} /> Arquivo
                       <input type="file" accept="image/*" className="hidden" onChange={e => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -98,8 +138,39 @@ export const Login: React.FC = () => {
                           reader.readAsDataURL(file);
                         }
                       }} />
-                   </label>
+                    </label>
+                    <button type="button" onClick={startCamera} className="flex-1 flex items-center justify-center gap-2 p-3 bg-slate-50 rounded-2xl border-dashed border-2 border-slate-200 hover:bg-slate-100 transition-colors text-[10px] font-black text-slate-500 uppercase">
+                      <Camera size={16} /> Câmera
+                    </button>
+                  </div>
+                  
+                  {photo && !showCamera && (
+                    <div className="relative w-20 h-20 mx-auto group">
+                      <img src={photo} className="w-full h-full object-cover rounded-2xl border-2 border-tocantins-blue" />
+                      <button type="button" onClick={() => setPhoto(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                {showCamera && (
+                  <div className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-center p-4">
+                    <div className="relative w-full max-w-sm aspect-square bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-white/10">
+                      <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                      <canvas ref={canvasRef} className="hidden" />
+                    </div>
+                    <div className="mt-8 flex gap-4">
+                      <button type="button" onClick={stopCamera} className="bg-white/10 text-white p-4 rounded-full hover:bg-white/20">
+                        <X size={24} />
+                      </button>
+                      <button type="button" onClick={takePhoto} className="bg-tocantins-blue text-white p-6 rounded-full shadow-2xl scale-110 active:scale-95 transition-transform">
+                        <Camera size={32} />
+                      </button>
+                    </div>
+                    <p className="text-white/50 text-[10px] font-black uppercase mt-6 tracking-widest">Aponte para seu rosto</p>
+                  </div>
+                )}
              </div>
           )}
 

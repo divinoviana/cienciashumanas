@@ -11,6 +11,7 @@ import { AdminDashboard } from './screens/AdminDashboard';
 import { Login } from './screens/Login';
 import { MyActivities } from './screens/MyActivities';
 import { EvaluationView } from './screens/EvaluationView';
+import { Profile } from './screens/Profile';
 import { TEACHER_INFO } from './data_admin';
 import { Mail, Lock } from 'lucide-react';
 
@@ -33,6 +34,7 @@ function AppContent() {
           <Route path="/evaluation/:examId" element={<StudentRoute><EvaluationView /></StudentRoute>} />
           <Route path="/contact" element={<StudentRoute><Contact /></StudentRoute>} />
           <Route path="/my-activities" element={<StudentRoute><MyActivities /></StudentRoute>} />
+          <Route path="/profile" element={<StudentRoute><Profile /></StudentRoute>} />
           <Route path="/admin" element={<AdminDashboard />} />
         </Routes>
       </main>

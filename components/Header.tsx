@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Home, History, MessageCircle } from 'lucide-react';
+import { BookOpen, Home, History, MessageCircle, Settings } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -72,20 +72,22 @@ export const Header: React.FC = () => {
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition text-xs font-bold"
             >
               <History size={16} />
-              <span className="hidden md:inline">Meu Histórico</span>
+              <span className="hidden md:inline">Histórico</span>
             </Link>
 
             <div className="flex items-center gap-2 border-l border-white/10 pl-2 sm:pl-4">
-              <div className="hidden sm:flex flex-col items-end mr-1">
-                <span className="text-[10px] font-bold text-white truncate max-w-[100px]">{student.name.split(' ')[0]}</span>
-                <span className="text-[8px] text-slate-500">{student.school_class}</span>
-              </div>
-              <img src={student.photo_url} className="w-8 h-8 rounded-full border border-tocantins-yellow object-cover shadow-sm" alt="Perfil" />
+              <Link to="/profile" className="flex items-center gap-2 group">
+                <div className="hidden sm:flex flex-col items-end mr-1">
+                  <span className="text-[10px] font-bold text-white group-hover:text-tocantins-yellow transition-colors truncate max-w-[100px]">{student.name.split(' ')[0]}</span>
+                  <span className="text-[8px] text-slate-500">{student.school_class}</span>
+                </div>
+                <img src={student.photo_url} className="w-8 h-8 rounded-full border border-tocantins-yellow object-cover shadow-sm group-hover:ring-2 group-hover:ring-tocantins-yellow transition-all" alt="Perfil" />
+              </Link>
               
               <button 
                 onClick={handleExit}
                 className="p-2 ml-1 hover:bg-red-500/20 rounded-lg transition-all text-slate-400 hover:text-red-400 flex items-center justify-center cursor-pointer"
-                title="Sair e voltar ao Login"
+                title="Sair"
               >
                 <Home size={20} />
               </button>
