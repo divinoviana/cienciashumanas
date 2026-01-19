@@ -2,9 +2,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { curriculumData, subjectsInfo } from '../data';
-import { Book, ArrowLeft, ShieldAlert, ChevronRight } from 'lucide-react';
+import { Book, ArrowLeft, ShieldAlert, ChevronRight, BrainCircuit, CheckCircle2, Clock, Award, Lock } from 'lucide-react';
 import { Subject } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 export const GradeView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +13,9 @@ export const GradeView: React.FC = () => {
   const navigate = useNavigate();
   const { student, isLoading } = useAuth();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [exams, setExams] = useState<any[]>([]);
+  const [userSubmissions, setUserSubmissions] = useState<string[]>([]);
+  const [loadingExams, setLoadingExams] = useState(true);
   
   const subjectKey = searchParams.get('subject') as Subject || 'filosofia';
   const grade = curriculumData.find(g => g.id === Number(id));
@@ -25,9 +29,39 @@ export const GradeView: React.FC = () => {
         setIsAuthorized(false);
       } else {
         setIsAuthorized(true);
+        fetchExamsAndStatus();
       }
     }
-  }, [id, student, isLoading, navigate]);
+  }, [id, student, isLoading, navigate, subjectKey]);
+
+  const fetchExamsAndStatus = async () => {
+    if (!student || !subjectKey) return;
+    setLoadingExams(true);
+    try {
+      const { data: examsData, error: examError } = await supabase
+        .from('bimonthly_exams')
+        .select('*')
+        .eq('grade', Number(id))
+        .eq('subject', subjectKey)
+        .or(`school_class.is.null,school_class.eq."${student.school_class}"`)
+        .order('created_at', { ascending: false });
+
+      if (examError) console.error("Erro ao carregar exames:", examError);
+
+      const { data: subsData } = await supabase
+        .from('submissions')
+        .select('lesson_title')
+        .eq('student_name', student.name)
+        .eq('subject', subjectKey);
+
+      setExams(examsData || []);
+      setUserSubmissions(subsData?.map(s => s.lesson_title) || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingExams(false);
+    }
+  };
 
   if (isLoading || isAuthorized === null) {
     return (
@@ -51,49 +85,125 @@ export const GradeView: React.FC = () => {
   if (!grade || !subject) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 animate-in fade-in duration-500">
-      <div className={`${subject.color} py-16 text-white`}>
+    <div className="min-h-screen bg-slate-50 animate-in fade-in duration-500 pb-20">
+      <div className={`${subject.color} py-16 text-white shadow-inner`}>
         <div className="container mx-auto px-4 max-w-4xl">
-          <Link to="/" className="flex items-center gap-2 text-white/80 hover:text-white mb-6 text-sm font-bold">
+          <Link to="/" className="flex items-center gap-2 text-white/80 hover:text-white mb-6 text-sm font-bold transition-all">
             <ArrowLeft size={16}/> Mudar Disciplina
           </Link>
-          <div className="flex items-center gap-4">
-             <span className="text-4xl">{subject.icon}</span>
+          <div className="flex items-center gap-6">
+             <div className="w-20 h-20 bg-white/20 rounded-[30px] flex items-center justify-center text-4xl shadow-inner border border-white/20 backdrop-blur-sm">
+                {subject.icon}
+             </div>
              <div>
-                <h1 className="text-3xl font-bold">{subject.name} - {grade.title}</h1>
-                <p className="text-white/70">Aulas e atividades do semestre</p>
+                <h1 className="text-3xl font-black uppercase tracking-tighter">{subject.name} - {grade.title}</h1>
+                <p className="text-white/70 font-medium uppercase tracking-widest text-[10px]">Portal de Conteúdo e Avaliação</p>
              </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-12 max-w-4xl -mt-8">
-        <div className="space-y-8">
-          {grade.bimesters.map((bimester) => {
-            const filteredLessons = bimester.lessons.filter(l => l.subject === subjectKey);
-            if (filteredLessons.length === 0) return null;
-
-            const displayTitle = bimester.subjectTitles?.[subjectKey] || bimester.title;
-
-            return (
-              <div key={bimester.id} className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
-                <div className="bg-slate-50 px-8 py-4 border-b">
-                   <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">{displayTitle}</h3>
-                </div>
-                <div className="divide-y">
-                  {filteredLessons.map((lesson) => (
-                    <Link key={lesson.id} to={`/lesson/${lesson.id}`} className="flex items-center p-6 hover:bg-slate-50 transition group">
-                       <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-tocantins-blue group-hover:text-white transition-all mr-4">
-                         <Book size={20}/>
-                       </div>
-                       <span className="font-bold text-slate-700 flex-1">{lesson.title}</span>
-                       <ChevronRight size={18} className="text-slate-300"/>
-                    </Link>
-                  ))}
-                </div>
+      <div className="container mx-auto px-4 py-12 max-w-4xl -mt-10">
+        <div className="space-y-12">
+          
+          {(exams.length > 0 || loadingExams) && (
+            <section className="animate-in slide-in-from-bottom-4 duration-700">
+              <div className="flex items-center gap-2 mb-6 ml-2">
+                <Award className="text-tocantins-blue" size={20} />
+                <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Avaliação Bimestral Disponível</h2>
               </div>
-            );
-          })}
+              
+              <div className="grid grid-cols-1 gap-4">
+                {loadingExams ? (
+                  <div className="bg-white p-8 rounded-[32px] border border-dashed flex items-center justify-center gap-3 text-slate-400 font-bold">
+                    <Clock className="animate-spin" size={18}/> Sincronizando...
+                  </div>
+                ) : (
+                  exams.map(exam => {
+                    const examTitle = `Avaliação Bimestral: ${exam.bimester}º Bimestre`;
+                    const isDone = userSubmissions.includes(examTitle);
+
+                    return (
+                      <Link 
+                        key={exam.id} 
+                        to={isDone ? "#" : `/evaluation/${exam.id}`}
+                        className={`bg-white p-6 rounded-[32px] shadow-lg border-2 transition-all flex items-center justify-between group ${isDone ? 'border-green-100 opacity-80 cursor-default grayscale' : 'border-indigo-50 hover:border-indigo-400 hover:-translate-y-1'}`}
+                        onClick={(e) => isDone && e.preventDefault()}
+                      >
+                         <div className="flex items-center gap-5">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:scale-110 ${isDone ? 'bg-slate-200 text-slate-500' : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'}`}>
+                               {isDone ? <Lock size={28}/> : <BrainCircuit size={28}/>}
+                            </div>
+                            <div>
+                               <h4 className="font-black text-slate-800 uppercase tracking-tight text-sm">
+                                 {isDone ? 'Avaliação Encerrada' : `Simulado do ${exam.bimester}º Bimestre`}
+                               </h4>
+                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                 {isDone ? 'Nota já registrada no sistema' : `Realize sua única tentativa agora`}
+                               </p>
+                            </div>
+                         </div>
+                         <div className="flex items-center gap-4">
+                            {isDone ? (
+                              <span className="bg-slate-100 text-slate-500 px-4 py-2 rounded-full text-[10px] font-black uppercase">Realizada</span>
+                            ) : (
+                              <>
+                                <span className="hidden sm:block text-[10px] font-black text-indigo-500 uppercase">Fazer Agora</span>
+                                <ChevronRight className="text-indigo-200 group-hover:text-indigo-500 transition-colors" />
+                              </>
+                            )}
+                         </div>
+                      </Link>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+          )}
+
+          <section>
+            <div className="flex items-center gap-2 mb-6 ml-2">
+              <Book className="text-slate-400" size={20} />
+              <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Roteiro de Estudos</h2>
+            </div>
+            
+            <div className="space-y-8">
+              {grade.bimesters.map((bimester) => {
+                const filteredLessons = bimester.lessons.filter(l => l.subject === subjectKey);
+                if (filteredLessons.length === 0) return null;
+
+                const displayTitle = bimester.subjectTitles?.[subjectKey] || bimester.title;
+
+                return (
+                  <div key={bimester.id} className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden">
+                    <div className="bg-slate-50 px-8 py-5 border-b flex justify-between items-center">
+                       <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest">{displayTitle}</h3>
+                       <span className="bg-white px-3 py-1 rounded-full text-[9px] font-black text-slate-400 border border-slate-200">{filteredLessons.length} Aulas</span>
+                    </div>
+                    <div className="divide-y divide-slate-50">
+                      {filteredLessons.map((lesson) => {
+                        const isLessonDone = userSubmissions.includes(lesson.title);
+                        return (
+                          <Link key={lesson.id} to={`/lesson/${lesson.id}`} className="flex items-center p-6 hover:bg-slate-50/80 transition group">
+                             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all mr-5 ${isLessonDone ? 'bg-green-50 text-green-500' : 'bg-slate-100 text-slate-400 group-hover:bg-tocantins-blue group-hover:text-white group-hover:rotate-6'}`}>
+                               {isLessonDone ? <CheckCircle2 size={20}/> : <Book size={20}/>}
+                             </div>
+                             <div className="flex-1">
+                                <span className={`font-bold text-sm block transition-colors ${isLessonDone ? 'text-slate-400' : 'text-slate-700 group-hover:text-tocantins-blue'}`}>
+                                  {lesson.title}
+                                </span>
+                                {isLessonDone && <span className="text-[9px] font-black text-green-500 uppercase tracking-widest">Atividade entregue</span>}
+                             </div>
+                             <ChevronRight size={18} className="text-slate-200 group-hover:text-tocantins-blue transition-all group-hover:translate-x-1"/>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         </div>
       </div>
     </div>
