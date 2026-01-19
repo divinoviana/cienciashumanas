@@ -11,7 +11,7 @@ import {
   MessageSquare, Loader2, X, Save, 
   RefreshCw, Home, ShieldCheck, Trash2, Settings,
   Search, Award, StickyNote, Clock, Send, UserCircle, BrainCircuit, Sparkles, FileText, CheckCircle2,
-  Filter, Download
+  Filter, Download, GraduationCap, ChevronRight, ClipboardEdit
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -29,6 +29,12 @@ export const AdminDashboard: React.FC = () => {
   
   const [activeTab, setActiveTab] = useState<'submissions' | 'evaluations' | 'messages' | 'students' | 'manage' | 'exam_generator'>('submissions');
   
+  // Estados do Carômetro
+  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+  const [studentNote, setStudentNote] = useState('');
+  const [isSavingNote, setIsSavingNote] = useState(false);
+  const [studentNotesHistory, setStudentNotesHistory] = useState<any[]>([]);
+
   // Gerador de Avaliação
   const [examGrade, setExamGrade] = useState('1');
   const [examBimester, setExamBimester] = useState('1');
@@ -37,7 +43,7 @@ export const AdminDashboard: React.FC = () => {
   const [isGeneratingExam, setIsGeneratingExam] = useState(false);
   const [isPublishingExam, setIsPublishingExam] = useState(false);
 
-  // Filtros de Relatório
+  // Filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGrade, setFilterGrade] = useState<string>('all');
   const [filterClass, setFilterClass] = useState<string>('all');
@@ -99,6 +105,42 @@ export const AdminDashboard: React.FC = () => {
     }
   }, [teacherSubject]);
 
+  // Carrega notas pedagógicas do aluno selecionado
+  useEffect(() => {
+    if (selectedStudent && teacherSubject) {
+        fetchStudentNotes(selectedStudent.id);
+    }
+  }, [selectedStudent, teacherSubject]);
+
+  const fetchStudentNotes = async (studentId: string) => {
+    const { data } = await supabase
+        .from('student_notes')
+        .select('*')
+        .eq('student_id', studentId)
+        .eq('teacher_subject', teacherSubject)
+        .order('created_at', { ascending: false });
+    setStudentNotesHistory(data || []);
+  };
+
+  const handleSaveNote = async () => {
+    if (!studentNote.trim() || !selectedStudent || !teacherSubject) return;
+    setIsSavingNote(true);
+    try {
+        const { error } = await supabase.from('student_notes').insert([{
+            student_id: selectedStudent.id,
+            teacher_subject: teacherSubject,
+            content: studentNote.trim()
+        }]);
+        if (error) throw error;
+        setStudentNote('');
+        fetchStudentNotes(selectedStudent.id);
+    } catch (e: any) {
+        alert("Erro ao salvar nota: " + e.message);
+    } finally {
+        setIsSavingNote(false);
+    }
+  };
+
   const handleGenerateExam = async () => {
     if (!teacherSubject || teacherSubject === 'SUPER_ADMIN') {
       alert("Apenas professores de disciplina podem gerar avaliações.");
@@ -113,7 +155,7 @@ export const AdminDashboard: React.FC = () => {
       const topics = lessons.map(l => l.title);
 
       if (topics.length === 0) {
-        alert("Não foram encontrados conteúdos para esta série/bimestre nesta disciplina.");
+        alert("Não foram encontrados conteúdos para esta série/bimestre.");
         setIsGeneratingExam(false);
         return;
       }
@@ -171,16 +213,23 @@ export const AdminDashboard: React.FC = () => {
       const matchGrade = filterGrade === 'all' || subGrade === filterGrade;
       const matchClass = filterClass === 'all' || sub.school_class === filterClass;
       
-      // Filtro específico para o Relatório de Notas (Avaliações Bimestrais)
       if (activeTab === 'evaluations') {
         const isExam = sub.lesson_title.startsWith('Avaliação Bimestral');
         const matchBimester = filterBimester === 'all' || sub.lesson_title.includes(`${filterBimester}º Bimestre`);
         return matchName && matchGrade && matchClass && isExam && matchBimester;
       }
-
       return matchName && matchGrade && matchClass;
     });
   }, [submissions, searchTerm, filterGrade, filterClass, filterBimester, activeTab]);
+
+  const filteredStudents = useMemo(() => {
+    return students.filter(st => {
+      const matchName = st.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchGrade = filterGrade === 'all' || st.grade === filterGrade;
+      const matchClass = filterClass === 'all' || st.school_class === filterClass;
+      return matchName && matchGrade && matchClass;
+    });
+  }, [students, searchTerm, filterGrade, filterClass]);
 
   if (!teacherSubject) {
     return (
@@ -210,6 +259,72 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans overflow-hidden">
+      
+      {/* MODAL DO ESTUDANTE (CARÔMETRO) */}
+      {selectedStudent && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+                    <h3 className="font-black text-slate-800 uppercase tracking-tighter">Ficha do Estudante</h3>
+                    <button onClick={() => setSelectedStudent(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={24}/></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-8 space-y-8">
+                    <div className="flex items-center gap-6">
+                        <div className="w-32 h-32 rounded-[32px] overflow-hidden border-4 border-white shadow-xl flex-shrink-0">
+                            <img src={selectedStudent.photo_url} className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                            <h4 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">{selectedStudent.name}</h4>
+                            <p className="text-indigo-600 font-black text-xs uppercase tracking-widest">{selectedStudent.grade}ª Série • Turma {selectedStudent.school_class}</p>
+                            <button 
+                                onClick={() => {
+                                    setActiveTab('messages');
+                                    setSearchTerm(selectedStudent.name);
+                                    setSelectedStudent(null);
+                                }}
+                                className="mt-4 flex items-center gap-2 bg-tocantins-blue text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                            >
+                                <MessageSquare size={16}/> Chamar no Chat
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h5 className="font-black text-slate-400 text-[10px] uppercase tracking-widest flex items-center gap-2">
+                            <ClipboardEdit size={14}/> Anotações Pedagógicas (Somente você vê)
+                        </h5>
+                        <div className="flex gap-2">
+                            <textarea 
+                                value={studentNote} 
+                                onChange={e => setStudentNote(e.target.value)}
+                                placeholder="Registre observações sobre comportamento, dificuldades ou avanços..." 
+                                className="flex-1 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 focus:border-tocantins-blue outline-none text-sm font-medium h-24"
+                            />
+                            <button 
+                                onClick={handleSaveNote}
+                                disabled={isSavingNote || !studentNote.trim()}
+                                className="bg-slate-900 text-white px-6 rounded-2xl font-black text-[10px] uppercase hover:bg-slate-800 disabled:opacity-50 transition-all flex flex-col items-center justify-center gap-1"
+                            >
+                                {isSavingNote ? <Loader2 className="animate-spin"/> : <Save size={18}/>}
+                                Salvar
+                            </button>
+                        </div>
+                        
+                        <div className="space-y-3 mt-6">
+                            {studentNotesHistory.map((n: any) => (
+                                <div key={n.id} className="bg-amber-50 p-4 rounded-2xl border border-amber-100 relative">
+                                    <p className="text-sm text-slate-700 italic">"{n.content}"</p>
+                                    <p className="text-[8px] font-black text-amber-600 uppercase mt-2">{new Date(n.created_at).toLocaleDateString('pt-BR')} às {new Date(n.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</p>
+                                </div>
+                            ))}
+                            {studentNotesHistory.length === 0 && <p className="text-center py-6 text-slate-300 text-xs font-bold uppercase">Nenhuma anotação registrada ainda.</p>}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
       <aside className="w-full lg:w-72 bg-slate-900 text-white p-6 flex flex-col shrink-0 border-r border-white/5">
         <div className="mb-10 text-center">
            <div className={`w-16 h-16 mx-auto mb-4 rounded-3xl flex items-center justify-center text-3xl shadow-2xl ${isSuper ? 'bg-amber-500' : currentSubInfo?.color}`}>
@@ -227,6 +342,9 @@ export const AdminDashboard: React.FC = () => {
               <BrainCircuit size={18}/> Gerar Avaliação
             </button>
           )}
+          <button onClick={() => setActiveTab('students')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'students' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
+            <Users size={18}/> Carômetro (Estudantes)
+          </button>
           <button onClick={() => setActiveTab('evaluations')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'evaluations' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
             <Award size={18}/> Relatório de Notas
           </button>
@@ -243,7 +361,7 @@ export const AdminDashboard: React.FC = () => {
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="bg-white border-b p-6 flex justify-between items-center z-10 shadow-sm">
            <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">
-             {activeTab === 'evaluations' ? 'Relatório de Notas Bimestrais' : activeTab === 'exam_generator' ? 'Gerador de Simulados' : 'Gestão Pedagógica'}
+             {activeTab === 'students' ? 'Carômetro Digital' : activeTab === 'evaluations' ? 'Notas Bimestrais' : 'Gestão Pedagógica'}
            </h1>
            <button onClick={loadData} className="p-3 text-slate-400 hover:text-tocantins-blue bg-slate-100 rounded-xl transition-all cursor-pointer">
              <RefreshCw size={20} className={loading ? 'animate-spin' : ''}/>
@@ -252,11 +370,11 @@ export const AdminDashboard: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto p-4 lg:p-10 bg-slate-50/50">
            
-           {/* FILTROS GERAIS (Aparecem em quase todas as abas) */}
+           {/* FILTROS GERAIS */}
            {activeTab !== 'exam_generator' && (
               <div className="mb-8 bg-white p-6 rounded-[32px] shadow-sm border border-slate-200 flex flex-wrap gap-4 items-end animate-in fade-in">
                  <div className="flex-1 min-w-[200px]">
-                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1 block">Buscar Estudante</label>
+                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1 block">Buscar por Nome</label>
                     <div className="relative">
                        <Search className="absolute left-4 top-3.5 text-slate-300" size={18}/>
                        <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Nome do aluno..." className="w-full pl-12 p-3.5 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-tocantins-blue/20 text-sm font-medium" />
@@ -278,17 +396,28 @@ export const AdminDashboard: React.FC = () => {
                        {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                  </div>
-                 {activeTab === 'evaluations' && (
-                    <div>
-                      <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1 block">Bimestre</label>
-                      <select value={filterBimester} onChange={e => setFilterBimester(e.target.value)} className="p-3.5 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-tocantins-blue/20 text-sm font-bold min-w-[120px]">
-                         <option value="all">Todos</option>
-                         <option value="1">1º Bim</option>
-                         <option value="2">2º Bim</option>
-                         <option value="3">3º Bim</option>
-                         <option value="4">4º Bim</option>
-                      </select>
-                    </div>
+              </div>
+           )}
+
+           {/* CARÔMETRO */}
+           {activeTab === 'students' && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-6 animate-in slide-in-from-bottom-4">
+                 {filteredStudents.length === 0 ? (
+                    <div className="col-span-full py-20 text-center text-slate-300 font-bold uppercase">Nenhum aluno encontrado para este filtro.</div>
+                 ) : (
+                    filteredStudents.map(st => (
+                        <div 
+                            key={st.id} 
+                            onClick={() => setSelectedStudent(st)}
+                            className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all group cursor-pointer"
+                        >
+                            <div className="aspect-square rounded-[24px] overflow-hidden mb-4 border-2 border-white shadow-inner bg-slate-100">
+                                <img src={st.photo_url} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500" />
+                            </div>
+                            <h4 className="font-black text-slate-800 uppercase text-[10px] leading-tight text-center truncate">{st.name}</h4>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest text-center mt-1">{st.school_class}</p>
+                        </div>
+                    ))
                  )}
               </div>
            )}
@@ -315,8 +444,8 @@ export const AdminDashboard: React.FC = () => {
                                 <tr key={sub.id} className="hover:bg-slate-50 transition-colors">
                                    <td className="p-6">
                                       <div className="flex items-center gap-3">
-                                         <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400">
-                                            {sub.student_name.charAt(0)}
+                                         <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400 overflow-hidden">
+                                            {sub.student_photo ? <img src={sub.student_photo} /> : sub.student_name.charAt(0)}
                                          </div>
                                          <span className="font-bold text-slate-800">{sub.student_name}</span>
                                       </div>
@@ -372,6 +501,20 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   ))
                 }
+              </div>
+           )}
+
+           {/* MENSAGENS / CHAT */}
+           {activeTab === 'messages' && (
+              <div className="max-w-5xl mx-auto space-y-4 animate-in fade-in">
+                 <div className="bg-tocantins-blue p-8 rounded-[40px] text-white shadow-xl mb-6">
+                    <h3 className="text-2xl font-black uppercase tracking-tighter">Central de Mensagens</h3>
+                    <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mt-1">Envie alertas gerais ou responda dúvidas individuais</p>
+                 </div>
+                 {/* Aqui você pode re-inserir a lógica de listagem de mensagens ou um chat mais completo se desejar */}
+                 <div className="bg-white rounded-[32px] p-6 border text-center text-slate-400 py-20 font-black uppercase text-xs">
+                    Selecione um aluno no Carômetro para iniciar uma conversa direta ou use os filtros acima para ver mensagens enviadas.
+                 </div>
               </div>
            )}
 
