@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { curriculumData } from '../data';
 import { ActivityInput } from '../components/ActivityInput';
@@ -7,11 +7,12 @@ import { SubmissionBar, SubmissionItem } from '../components/SubmissionBar';
 import { ArrowLeft, BookOpen, PenTool, Sparkles, Home } from 'lucide-react';
 import { evaluateActivities, AIResponse } from '../services/aiService';
 import { AIFeedbackModal } from '../components/AIFeedbackModal';
+import { useAuth } from '../context/AuthContext';
 
 export const LessonView: React.FC = () => {
   const { lessonId } = useParams<{ lessonId: string }>();
   const navigate = useNavigate();
-  const [student, setStudent] = useState<any>(null);
+  const { student, isLoading } = useAuth();
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
@@ -19,14 +20,10 @@ export const LessonView: React.FC = () => {
   const [aiData, setAiData] = useState<AIResponse | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('student');
-    if (!saved) {
+    if (!isLoading && !student) {
       navigate('/login');
-    } else {
-      const data = JSON.parse(saved);
-      setStudent(data);
     }
-  }, [navigate]);
+  }, [student, isLoading, navigate]);
 
   useEffect(() => {
     setAnswers({});
@@ -36,10 +33,7 @@ export const LessonView: React.FC = () => {
 
   const getTodayString = () => {
     const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
   let foundLesson = null;
@@ -54,6 +48,14 @@ export const LessonView: React.FC = () => {
       }
     }
     if (foundLesson) break;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-tocantins-blue rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
   if (!foundLesson) return <div className="p-8 text-center">Aula não encontrada.</div>;
@@ -96,7 +98,7 @@ export const LessonView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-32">
+    <div className="min-h-screen bg-slate-50 pb-32 animate-in fade-in duration-500">
       <AIFeedbackModal isOpen={isAIModalOpen} isLoading={aiLoading} data={aiData} onClose={() => setIsAIModalOpen(false)} />
       
       <div className="relative h-60 w-full overflow-hidden bg-slate-800">
@@ -113,7 +115,7 @@ export const LessonView: React.FC = () => {
           <h1 className="text-3xl font-bold text-white">{foundLesson.title}</h1>
           {student && (
             <div className="flex items-center gap-2 mt-4 text-white/90 bg-white/10 w-fit px-4 py-2 rounded-full backdrop-blur-sm border border-white/20">
-               <img src={student.photo_url} className="w-6 h-6 rounded-full object-cover" />
+               <img src={student.photo_url} className="w-6 h-6 rounded-full object-cover" alt="User" />
                <span className="text-xs font-bold uppercase">{student.name} • {student.school_class}</span>
             </div>
           )}
@@ -148,8 +150,9 @@ export const LessonView: React.FC = () => {
           </div>
 
           <button 
+            type="button"
             onClick={handleAICorrection} 
-            className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg hover:shadow-indigo-200 transition-all hover:-translate-y-1 mb-4"
+            className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg hover:shadow-indigo-200 transition-all hover:-translate-y-1 mb-4 cursor-pointer"
           >
             <Sparkles size={20} /> Analisar Respostas com IA (Opcional)
           </button>
@@ -162,7 +165,7 @@ export const LessonView: React.FC = () => {
           schoolClass={student.school_class} 
           submissionDate={getTodayString()} 
           lessonTitle={foundLesson.title} 
-          subject={foundLesson.subject} // Agora passa a disciplina correta
+          subject={foundLesson.subject} 
           submissionData={getSubmissionData()} 
           aiData={aiData} 
           theory={foundLesson.theory} 

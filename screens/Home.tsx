@@ -1,28 +1,34 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { subjectsInfo } from '../data';
 import { TEACHER_INFO } from '../data_admin';
-import { BookOpen, GraduationCap, ChevronRight, UserCircle } from 'lucide-react';
+import { BookOpen, GraduationCap, ChevronRight } from 'lucide-react';
 import { Subject } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
-  const [student, setStudent] = useState<any>(null);
+  const { student, isLoading } = useAuth();
 
   useEffect(() => {
-    const saved = localStorage.getItem('student');
-    if (!saved) {
+    if (!isLoading && !student) {
       navigate('/login');
-    } else {
-      setStudent(JSON.parse(saved));
     }
-  }, [navigate]);
+  }, [student, isLoading, navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-tocantins-blue rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   if (!student) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 animate-in fade-in duration-500">
       <div className="bg-slate-900 text-white py-16 px-4">
         <div className="container mx-auto max-w-4xl text-center">
           <h2 className="text-4xl font-serif font-bold mb-4">Olá, {student.name.split(' ')[0]}!</h2>

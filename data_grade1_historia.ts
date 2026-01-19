@@ -1,3 +1,4 @@
+
 import { Lesson } from './types';
 import { createLesson } from './data_helpers';
 
@@ -91,7 +92,7 @@ export const hisLessonsB2: Lesson[] = [
 
   createLesson('g1-his-b2-l4', 'L4: Imigração Asiática: Japoneses e Libaneses', 'historia', 
     'Além de europeus, o Brasil recebeu fluxos significativos de asiáticos. Os japoneses chegaram a partir de 1908, focando na agricultura de alimentos. Já os árabes (libaneses e sírios) destacaram-se no comércio mascate, percorrendo o interior do país e integrando regiões distantes através das trocas comerciais.', 
-    ['Como a imigração japonesa contribuiu para a agricultura brasileira?', 'Qual o papel dos imigrantes sírio-libaneses na formação do comércio no interior do Brasil?']),
+    ['Como a imigração japonesa contribuiu para the agricultura brasileira?', 'Qual o papel dos imigrantes sírio-libaneses na formação do comércio no interior do Brasil?']),
 
   createLesson('g1-his-b2-l5', 'L5: Migrações Internas: O Êxodo Rural', 'historia', 
     'No século XX, o Brasil viveu uma explosão de migração interna. Milhões de pessoas saíram do campo, especialmente do Nordeste e Minas Gerais, rumo às cidades do Rio de Janeiro e São Paulo. A industrialização e a mecanização do campo foram os grandes motores desse deslocamento em massa.', 
@@ -193,7 +194,7 @@ export const hisLessonsB3: Lesson[] = [
 
   createLesson('g1-his-b3-l11', 'L11: Era Vargas: 1934 e 1937', 'historia', 
     'Em 1934, tivemos avanços como o voto feminino e as leis trabalhistas. Porém, em 1937, Vargas impôs a "Polaca", uma constituição autoritária que deu início ao Estado Novo, fechando o Congresso e centralizando todo o poder nas mãos do presidente.', 
-    ['Diferencie a face democrática da CF de 1934 da face autoritária da CF de 1937.', 'Qual a importância da conquista do voto feminino na década de 30?']),
+    ['Diferencie the face democrática da CF de 1934 da face autoritária da CF de 1937.', 'Qual a importância da conquista do voto feminino na década de 30?']),
 
   createLesson('g1-his-b3-l12', 'L12: Constituição de 1946', 'historia', 
     'Após a 2ª Guerra e o fim da Era Vargas, o Brasil voltou à democracia. A CF de 1946 garantiu liberdades individuais, direito de greve e liberdade de expressão, tentando equilibrar a ordem social com a participação popular no período populista.', 
@@ -238,7 +239,7 @@ export const hisLessonsB4: Lesson[] = [
     ['O que significa o conceito de "racismo estrutural"?', 'Como o racismo estrutural se manifesta na desigualdade econômica brasileira?']),
 
   createLesson('g1-his-b4-l4', 'L4: Feminismo', 'historia', 
-    'O feminismo é o movimento pela igualdade de direitos entre homens e mulheres. Historicamente, as mulheres lutaram primeiro pelo direito ao estudo, depois pelo voto (conquistado no Brasil in 1932) e, mais recentemente, pelo fim da violência doméstica e igualdade salarial. É uma luta pela autonomia do corpo e da vida feminina.', 
+    'O feminismo é o movimento pela igualdade de direitos entre homens e mulheres. Historicamente, as mulheres lutaram primeiro pelo direito ao estudo, depois pelo voto (conquistado no Brasil em 1932) e, mais recentemente, pelo fim da violência doméstica e igualdade salarial. É uma luta pela autonomia do corpo e da vida feminina.', 
     ['Quais foram as principais conquistas do feminismo no Brasil do século XX?', 'Por que a igualdade salarial ainda é um desafio para as mulheres hoje?']),
 
   createLesson('g1-his-b4-l5', 'L5: LGBTQIA+ e Cidadania', 'historia', 

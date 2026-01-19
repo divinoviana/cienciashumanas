@@ -4,23 +4,24 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { curriculumData } from '../data';
 import { ArrowLeft, BookCheck, Star, MessageSquare, RotateCcw, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export const MyActivities: React.FC = () => {
   const navigate = useNavigate();
-  const [student, setStudent] = useState<any>(null);
+  // Fix: useAuth provides correctly persisted student data
+  const { student, isLoading: isAuthLoading } = useAuth();
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem('student');
-    if (!saved) {
-      navigate('/login');
-      return;
+    if (!isAuthLoading) {
+      if (!student) {
+        navigate('/login');
+      } else {
+        fetchMySubmissions(student.name, student.school_class);
+      }
     }
-    const studentData = JSON.parse(saved);
-    setStudent(studentData);
-    fetchMySubmissions(studentData.name, studentData.school_class);
-  }, [navigate]);
+  }, [student, isAuthLoading, navigate]);
 
   const fetchMySubmissions = async (name: string, sClass: string) => {
     setLoading(true);
@@ -60,6 +61,14 @@ export const MyActivities: React.FC = () => {
       alert("Aula original não encontrada. Tente acessar pela página inicial.");
     }
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-tocantins-blue rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   if (!student) return null;
 

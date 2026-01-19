@@ -5,10 +5,12 @@ import { ArrowLeft, Send, MessageCircle, Loader2, UserCircle, BellRing, ChevronR
 import { supabase } from '../lib/supabase';
 import { subjectsInfo } from '../data';
 import { Subject } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 export const Contact: React.FC = () => {
   const navigate = useNavigate();
-  const [student, setStudent] = useState<any>(null);
+  // Fix: useAuth provides the correctly persisted student data and manages key names
+  const { student, isLoading: isAuthLoading } = useAuth();
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -17,10 +19,10 @@ export const Contact: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('student');
-    if (!saved) { navigate('/login'); return; }
-    setStudent(JSON.parse(saved));
-  }, [navigate]);
+    if (!isAuthLoading && !student) {
+      navigate('/login');
+    }
+  }, [student, isAuthLoading, navigate]);
 
   useEffect(() => {
     if (!selectedSubject || !student) return;
@@ -58,6 +60,14 @@ export const Contact: React.FC = () => {
       setNewMessage('');
     } finally { setSending(false); }
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-tocantins-blue rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   if (!student) return null;
 
