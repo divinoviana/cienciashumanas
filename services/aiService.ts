@@ -169,3 +169,49 @@ export const evaluateActivities = async (
     throw new Error("Erro na conexão com o assistente.");
   }
 };
+
+export const generatePedagogicalSummary = async (
+  context: "INDIVIDUAL" | "TURMA",
+  data: {
+    subject: string,
+    grades: number[],
+    notes: string[],
+    studentName?: string,
+    schoolClass: string
+  }
+): Promise<string> => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) throw new Error("API Key não configurada.");
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const prompt = `
+    Atue como um Coordenador Pedagógico especialista em Ciências Humanas.
+    Gere um relatório analítico e profissional em português para o professor de ${data.subject}.
+    
+    TIPO DE RELATÓRIO: ${context}
+    ${data.studentName ? `ESTUDANTE: ${data.studentName}` : ''}
+    TURMA: ${data.schoolClass}
+    HISTÓRICO DE NOTAS: ${data.grades.join(", ")}
+    OBSERVAÇÕES DO PROFESSOR: ${data.notes.join(" | ")}
+    
+    O relatório deve conter:
+    1. Resumo do Desempenho (tendência de notas).
+    2. Análise de Comportamento/Participação baseada nas observações.
+    3. Sugestões de Intervenção Pedagógica (pontos a reforçar).
+    
+    Mantenha um tom ético, encorajador e focado no crescimento do aluno.
+    Use Markdown para formatação.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: { temperature: 0.5 }
+    });
+    return response.text || "Não foi possível gerar o relatório.";
+  } catch (e) {
+    return "Erro ao processar síntese pedagógica com IA.";
+  }
+};

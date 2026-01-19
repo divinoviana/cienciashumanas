@@ -5,13 +5,13 @@ import { subjectsInfo, ADMIN_PASSWORDS, curriculumData } from '../data';
 import { Subject } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { generateBimonthlyEvaluation, GeneratedEvaluation } from '../services/aiService';
+import { generateBimonthlyEvaluation, GeneratedEvaluation, generatePedagogicalSummary } from '../services/aiService';
 import { 
   Users, BookOpen, User, 
   MessageSquare, Loader2, X, Save, 
   RefreshCw, Home, ShieldCheck, Trash2, Settings,
   Search, Award, StickyNote, Clock, Send, UserCircle, BrainCircuit, Sparkles, FileText, CheckCircle2,
-  Filter, Download, GraduationCap, ChevronRight, ClipboardEdit
+  Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -27,13 +27,19 @@ export const AdminDashboard: React.FC = () => {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'submissions' | 'evaluations' | 'messages' | 'students' | 'manage' | 'exam_generator'>('submissions');
+  const [activeTab, setActiveTab] = useState<'submissions' | 'evaluations' | 'messages' | 'students' | 'manage' | 'exam_generator' | 'reports'>('submissions');
   
   // Estados do Carômetro
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
   const [studentNote, setStudentNote] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [studentNotesHistory, setStudentNotesHistory] = useState<any[]>([]);
+
+  // Estados de Relatórios
+  const [reportTarget, setReportTarget] = useState<'student' | 'class'>('student');
+  const [selectedReportStudent, setSelectedReportStudent] = useState<string>('');
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [aiReportResult, setAiReportResult] = useState<string | null>(null);
 
   // Gerador de Avaliação
   const [examGrade, setExamGrade] = useState('1');
@@ -105,7 +111,6 @@ export const AdminDashboard: React.FC = () => {
     }
   }, [teacherSubject]);
 
-  // Carrega notas pedagógicas do aluno selecionado
   useEffect(() => {
     if (selectedStudent && teacherSubject) {
         fetchStudentNotes(selectedStudent.id);
@@ -141,41 +146,50 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  /**
+   * FIX: Implemented handleGenerateExam to trigger AI generation of evaluation questions.
+   * It gathers topics from the current curriculumData based on the selected grade and bimester.
+   */
   const handleGenerateExam = async () => {
-    if (!teacherSubject || teacherSubject === 'SUPER_ADMIN') {
-      alert("Apenas professores de disciplina podem gerar avaliações.");
-      return;
-    }
-
+    if (!teacherSubject || teacherSubject === 'SUPER_ADMIN') return;
+    
     setIsGeneratingExam(true);
+    setGeneratedExam(null);
+
     try {
+      const subjectName = subjectsInfo[teacherSubject as Subject]?.name || "";
       const gradeData = curriculumData.find(g => g.id === Number(examGrade));
       const bimesterData = gradeData?.bimesters.find(b => b.id === Number(examBimester));
-      const lessons = bimesterData?.lessons.filter(l => l.subject === teacherSubject) || [];
-      const topics = lessons.map(l => l.title);
+      
+      const topics = bimesterData?.lessons
+        .filter(l => l.subject === teacherSubject)
+        .map(l => l.title) || [];
 
       if (topics.length === 0) {
-        alert("Não foram encontrados conteúdos para esta série/bimestre.");
-        setIsGeneratingExam(false);
-        return;
+        throw new Error("Não há conteúdos cadastrados para esta disciplina no bimestre selecionado.");
       }
 
-      const exam = await generateBimonthlyEvaluation(
-        subjectsInfo[teacherSubject as Subject].name,
+      const result = await generateBimonthlyEvaluation(
+        subjectName,
         examGrade,
         examBimester,
         topics
       );
-      setGeneratedExam(exam);
-    } catch (err: any) {
-      alert("Erro ao gerar prova: " + err.message);
+
+      setGeneratedExam(result);
+    } catch (e: any) {
+      alert("Erro ao gerar avaliação: " + e.message);
     } finally {
       setIsGeneratingExam(false);
     }
   };
 
+  /**
+   * FIX: Implemented handlePublishExam to save the AI-generated exam into the database.
+   */
   const handlePublishExam = async () => {
     if (!generatedExam || !teacherSubject) return;
+    
     setIsPublishingExam(true);
     try {
       const { error } = await supabase.from('bimonthly_exams').insert([{
@@ -183,18 +197,84 @@ export const AdminDashboard: React.FC = () => {
         grade: Number(examGrade),
         bimester: Number(examBimester),
         school_class: examClass === 'all' ? null : examClass,
-        questions: generatedExam.questions,
-        created_at: new Date().toISOString()
+        questions: generatedExam.questions
       }]);
 
       if (error) throw error;
-      
-      alert(`Avaliação de ${subjectsInfo[teacherSubject as Subject].name} publicada!`);
+
+      alert("Avaliação publicada com sucesso!");
       setGeneratedExam(null);
-    } catch (err: any) {
-      alert("Erro ao publicar: " + err.message);
+      setActiveTab('submissions');
+    } catch (e: any) {
+      alert("Erro ao publicar: " + e.message);
     } finally {
       setIsPublishingExam(false);
+    }
+  };
+
+  const handleGenerateFullReport = async () => {
+    if (!teacherSubject) return;
+    setIsGeneratingReport(true);
+    setAiReportResult(null);
+
+    try {
+      let targetGrades: number[] = [];
+      let targetNotes: string[] = [];
+      let studentName = "";
+      let schoolClass = filterClass !== 'all' ? filterClass : "Turma não selecionada";
+
+      if (reportTarget === 'student') {
+        const student = students.find(s => s.id === selectedReportStudent);
+        if (!student) {
+          alert("Selecione um estudante.");
+          setIsGeneratingReport(false);
+          return;
+        }
+        studentName = student.name;
+        schoolClass = student.school_class;
+        
+        targetGrades = submissions
+          .filter(s => s.student_name === student.name)
+          .map(s => Number(s.score));
+
+        const { data: notes } = await supabase
+          .from('student_notes')
+          .select('content')
+          .eq('student_id', student.id)
+          .eq('teacher_subject', teacherSubject);
+        
+        targetNotes = (notes || []).map(n => n.content);
+      } else {
+        // Relatório por Turma
+        if (filterClass === 'all') {
+          alert("Selecione uma turma nos filtros acima para gerar o relatório do grupo.");
+          setIsGeneratingReport(false);
+          return;
+        }
+        targetGrades = submissions
+          .filter(s => s.school_class === filterClass)
+          .map(s => Number(s.score));
+        
+        // Em relatório de turma, pegamos observações gerais de todos os alunos daquela turma
+        targetNotes = ["Relatório coletivo de desempenho e engajamento da turma."];
+      }
+
+      const summary = await generatePedagogicalSummary(
+        reportTarget === 'student' ? 'INDIVIDUAL' : 'TURMA',
+        {
+          subject: subjectsInfo[teacherSubject as Subject]?.name || "Geral",
+          grades: targetGrades,
+          notes: targetNotes,
+          studentName: studentName || undefined,
+          schoolClass: schoolClass
+        }
+      );
+
+      setAiReportResult(summary);
+    } catch (e: any) {
+      alert("Erro ao gerar relatório: " + e.message);
+    } finally {
+      setIsGeneratingReport(false);
     }
   };
 
@@ -260,7 +340,6 @@ export const AdminDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans overflow-hidden">
       
-      {/* MODAL DO ESTUDANTE (CARÔMETRO) */}
       {selectedStudent && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -333,7 +412,7 @@ export const AdminDashboard: React.FC = () => {
            <h2 className="font-black text-sm uppercase tracking-tight">{isSuper ? 'Super Admin' : `Prof. ${currentSubInfo?.name}`}</h2>
         </div>
 
-        <nav className="space-y-2 flex-1">
+        <nav className="space-y-2 flex-1 overflow-y-auto">
           <button onClick={() => setActiveTab('submissions')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'submissions' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
             <BookOpen size={18}/> Atividades Diárias
           </button>
@@ -343,10 +422,13 @@ export const AdminDashboard: React.FC = () => {
             </button>
           )}
           <button onClick={() => setActiveTab('students')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'students' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
-            <Users size={18}/> Carômetro (Estudantes)
+            <Users size={18}/> Carômetro
+          </button>
+          <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'reports' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
+            <BarChart3 size={18}/> Relatórios (IA)
           </button>
           <button onClick={() => setActiveTab('evaluations')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'evaluations' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
-            <Award size={18}/> Relatório de Notas
+            <Award size={18}/> Notas Bimestrais
           </button>
           <button onClick={() => setActiveTab('messages')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'messages' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
             <MessageSquare size={18}/> Chat e Alertas
@@ -359,9 +441,9 @@ export const AdminDashboard: React.FC = () => {
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white border-b p-6 flex justify-between items-center z-10 shadow-sm">
+        <header className="bg-white border-b p-6 flex justify-between items-center z-10 shadow-sm no-print">
            <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">
-             {activeTab === 'students' ? 'Carômetro Digital' : activeTab === 'evaluations' ? 'Notas Bimestrais' : 'Gestão Pedagógica'}
+             {activeTab === 'reports' ? 'Relatórios Pedagógicos' : 'Gestão Pedagógica'}
            </h1>
            <button onClick={loadData} className="p-3 text-slate-400 hover:text-tocantins-blue bg-slate-100 rounded-xl transition-all cursor-pointer">
              <RefreshCw size={20} className={loading ? 'animate-spin' : ''}/>
@@ -370,9 +452,9 @@ export const AdminDashboard: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto p-4 lg:p-10 bg-slate-50/50">
            
-           {/* FILTROS GERAIS */}
+           {/* FILTROS GERAIS (Ocultos em alguns contextos ou na impressão) */}
            {activeTab !== 'exam_generator' && (
-              <div className="mb-8 bg-white p-6 rounded-[32px] shadow-sm border border-slate-200 flex flex-wrap gap-4 items-end animate-in fade-in">
+              <div className="mb-8 bg-white p-6 rounded-[32px] shadow-sm border border-slate-200 flex flex-wrap gap-4 items-end animate-in fade-in no-print">
                  <div className="flex-1 min-w-[200px]">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1 block">Buscar por Nome</label>
                     <div className="relative">
@@ -397,6 +479,104 @@ export const AdminDashboard: React.FC = () => {
                     </select>
                  </div>
               </div>
+           )}
+
+           {/* ABA DE RELATÓRIOS */}
+           {activeTab === 'reports' && (
+             <div className="max-w-5xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                <div className="bg-white p-8 rounded-[40px] shadow-xl border border-slate-100 no-print">
+                   <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter mb-6 flex items-center gap-2">
+                     <Wand2 className="text-tocantins-blue" /> Gerador de Síntese Pedagógica
+                   </h3>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                         <p className="text-xs font-black text-slate-400 uppercase">1. Escopo do Relatório</p>
+                         <div className="flex gap-2">
+                            <button 
+                              onClick={() => setReportTarget('student')}
+                              className={`flex-1 p-4 rounded-2xl border-2 font-bold text-sm transition-all ${reportTarget === 'student' ? 'border-tocantins-blue bg-blue-50 text-tocantins-blue' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
+                            >
+                              Individual (Estudante)
+                            </button>
+                            <button 
+                              onClick={() => setReportTarget('class')}
+                              className={`flex-1 p-4 rounded-2xl border-2 font-bold text-sm transition-all ${reportTarget === 'class' ? 'border-tocantins-blue bg-blue-50 text-tocantins-blue' : 'border-slate-100 bg-slate-50 text-slate-400'}`}
+                            >
+                              Coletivo (Turma)
+                            </button>
+                         </div>
+                      </div>
+                      <div className="space-y-4">
+                         <p className="text-xs font-black text-slate-400 uppercase">2. Alvo da Análise</p>
+                         {reportTarget === 'student' ? (
+                            <select 
+                              value={selectedReportStudent}
+                              onChange={e => setSelectedReportStudent(e.target.value)}
+                              className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold outline-none focus:border-tocantins-blue"
+                            >
+                               <option value="">Selecione um aluno...</option>
+                               {filteredStudents.map(s => <option key={s.id} value={s.id}>{s.name} ({s.school_class})</option>)}
+                            </select>
+                         ) : (
+                            <div className="p-4 bg-amber-50 text-amber-700 rounded-2xl text-xs font-bold border border-amber-100">
+                               A análise será feita baseada na turma <b>{filterClass === 'all' ? 'Selecione uma turma no filtro topo' : filterClass}</b>.
+                            </div>
+                         )}
+                      </div>
+                   </div>
+                   <button 
+                    onClick={handleGenerateFullReport}
+                    disabled={isGeneratingReport || (reportTarget === 'student' && !selectedReportStudent) || (reportTarget === 'class' && filterClass === 'all')}
+                    className="mt-8 w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-3 hover:bg-slate-800 disabled:opacity-50 transition-all"
+                   >
+                      {isGeneratingReport ? <Loader2 className="animate-spin" /> : <Sparkles size={18}/>}
+                      {isGeneratingReport ? 'Processando dados...' : 'Gerar Relatório Analítico com IA'}
+                   </button>
+                </div>
+
+                {aiReportResult && (
+                  <div className="bg-white p-10 rounded-[50px] shadow-2xl border border-slate-100 relative print:shadow-none print:border-none print:p-0">
+                     <div className="flex justify-between items-start mb-10 no-print">
+                        <div className="flex items-center gap-4">
+                           <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+                              <CheckCircle2 />
+                           </div>
+                           <div>
+                              <h4 className="font-black text-slate-800 uppercase text-sm">Relatório Pronto</h4>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Documento gerado em {new Date().toLocaleDateString()}</p>
+                           </div>
+                        </div>
+                        <button onClick={() => window.print()} className="bg-slate-100 hover:bg-slate-200 p-4 rounded-2xl text-slate-600 transition-all flex items-center gap-2 font-black text-xs uppercase">
+                           <Printer size={18}/> Imprimir / PDF
+                        </button>
+                     </div>
+
+                     <div className="prose prose-slate max-w-none">
+                        <div className="mb-8 border-b pb-8 flex flex-col items-center text-center">
+                           <h2 className="text-2xl font-black text-slate-800 uppercase mb-2">Relatório Pedagógico Analítico</h2>
+                           <p className="text-xs font-bold text-tocantins-blue uppercase tracking-widest">Colégio Estadual Frederico Pedreira Neto • Disciplina: {subjectsInfo[teacherSubject as Subject]?.name}</p>
+                        </div>
+                        
+                        <div className="bg-slate-50 p-8 rounded-[32px] border border-slate-200 mb-8 whitespace-pre-wrap font-medium text-slate-700 leading-relaxed text-sm shadow-inner">
+                           {aiReportResult}
+                        </div>
+
+                        <div className="mt-12 pt-12 border-t flex justify-around text-center grayscale opacity-50 no-print">
+                            <div>
+                               <p className="text-[10px] font-black uppercase mb-1">Docente</p>
+                               <div className="w-40 h-px bg-slate-300 mx-auto mb-2"></div>
+                               <p className="text-xs font-bold text-slate-500">Assinatura</p>
+                            </div>
+                            <div>
+                               <p className="text-[10px] font-black uppercase mb-1">Coordenação</p>
+                               <div className="w-40 h-px bg-slate-300 mx-auto mb-2"></div>
+                               <p className="text-xs font-bold text-slate-500">Assinatura</p>
+                            </div>
+                        </div>
+                     </div>
+                  </div>
+                )}
+             </div>
            )}
 
            {/* CARÔMETRO */}
@@ -511,7 +691,6 @@ export const AdminDashboard: React.FC = () => {
                     <h3 className="text-2xl font-black uppercase tracking-tighter">Central de Mensagens</h3>
                     <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mt-1">Envie alertas gerais ou responda dúvidas individuais</p>
                  </div>
-                 {/* Aqui você pode re-inserir a lógica de listagem de mensagens ou um chat mais completo se desejar */}
                  <div className="bg-white rounded-[32px] p-6 border text-center text-slate-400 py-20 font-black uppercase text-xs">
                     Selecione um aluno no Carômetro para iniciar uma conversa direta ou use os filtros acima para ver mensagens enviadas.
                  </div>
@@ -606,6 +785,15 @@ export const AdminDashboard: React.FC = () => {
 
         </div>
       </main>
+
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; }
+          main { overflow: visible !important; height: auto !important; }
+          .overflow-y-auto { overflow: visible !important; height: auto !important; }
+        }
+      `}</style>
     </div>
   );
 };
