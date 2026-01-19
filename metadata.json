@@ -1,6 +1,6 @@
 {
-  "name": "CHSA Portal Limpo",
-  "description": "Estrutura base para inserção de conteúdo pedagógico.",
+  "name": "Portal de Ciências Humanas e Sociais Aplicadas",
+  "description": "adminstração da área",
   "requestFramePermissions": [
     "camera"
   ]
