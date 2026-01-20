@@ -12,7 +12,7 @@ import {
   RefreshCw, Home, ShieldCheck, Trash2, Settings,
   Search, Award, StickyNote, Clock, Send, UserCircle, BrainCircuit, Sparkles, FileText, CheckCircle2,
   Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2,
-  Library, ListChecks
+  Library, ListChecks, Reply
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -35,6 +35,11 @@ export const AdminDashboard: React.FC = () => {
   const [studentNote, setStudentNote] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [studentNotesHistory, setStudentNotesHistory] = useState<any[]>([]);
+
+  // Estados de Feedback do Professor
+  const [feedbackingId, setFeedbackingId] = useState<string | null>(null);
+  const [teacherFeedbackText, setTeacherFeedbackText] = useState('');
+  const [isSavingFeedback, setIsSavingFeedback] = useState(false);
 
   // Estados de Relatórios
   const [reportTarget, setReportTarget] = useState<'student' | 'class'>('student');
@@ -147,6 +152,29 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleSaveFeedback = async (submissionId: string) => {
+    if (!teacherFeedbackText.trim()) return;
+    setIsSavingFeedback(true);
+    try {
+      const { error } = await supabase
+        .from('submissions')
+        .update({ teacher_feedback: teacherFeedbackText.trim() })
+        .eq('id', submissionId);
+
+      if (error) throw error;
+
+      // Atualiza localmente
+      setSubmissions(prev => prev.map(s => s.id === submissionId ? { ...s, teacher_feedback: teacherFeedbackText.trim() } : s));
+      setFeedbackingId(null);
+      setTeacherFeedbackText('');
+      alert("Feedback enviado com sucesso!");
+    } catch (e: any) {
+      alert("Erro ao salvar feedback: " + e.message);
+    } finally {
+      setIsSavingFeedback(false);
+    }
+  };
+
   const handleGenerateExam = async () => {
     if (!teacherSubject || teacherSubject === 'SUPER_ADMIN') return;
     
@@ -163,7 +191,7 @@ export const AdminDashboard: React.FC = () => {
         .map(l => l.title) || [];
 
       if (topics.length === 0) {
-        throw new Error("Não há conteúdos cadastrados para esta disciplina no bimestre selecionado.");
+        throw new Error("Não há lições cadastradas para o " + examBimester + "º bimestre desta matéria.");
       }
 
       const result = await generateBimonthlyEvaluation(
@@ -175,7 +203,7 @@ export const AdminDashboard: React.FC = () => {
 
       setGeneratedExam(result);
     } catch (e: any) {
-      alert("Erro ao gerar avaliação: " + e.message);
+      alert("Falha na IA: " + (e.message || "Tente novamente em instantes."));
     } finally {
       setIsGeneratingExam(false);
     }
@@ -196,11 +224,11 @@ export const AdminDashboard: React.FC = () => {
 
       if (error) throw error;
 
-      alert("Avaliação publicada com sucesso!");
+      alert("Avaliação publicada com sucesso para os alunos!");
       setGeneratedExam(null);
       setActiveTab('submissions');
     } catch (e: any) {
-      alert("Erro ao publicar: " + e.message);
+      alert("Erro ao publicar no banco de dados: " + e.message);
     } finally {
       setIsPublishingExam(false);
     }
@@ -220,7 +248,7 @@ export const AdminDashboard: React.FC = () => {
       if (reportTarget === 'student') {
         const student = students.find(s => s.id === selectedReportStudent);
         if (!student) {
-          alert("Selecione um estudante.");
+          alert("Por favor, selecione um estudante.");
           setIsGeneratingReport(false);
           return;
         }
@@ -240,7 +268,7 @@ export const AdminDashboard: React.FC = () => {
         targetNotes = (notes || []).map(n => n.content);
       } else {
         if (filterClass === 'all') {
-          alert("Selecione uma turma nos filtros acima para gerar o relatório do grupo.");
+          alert("Selecione uma turma específica nos filtros para gerar o relatório coletivo.");
           setIsGeneratingReport(false);
           return;
         }
@@ -248,13 +276,13 @@ export const AdminDashboard: React.FC = () => {
           .filter(s => s.school_class === filterClass)
           .map(s => Number(s.score));
         
-        targetNotes = ["Relatório coletivo de desempenho e engajamento da turma."];
+        targetNotes = ["Relatório coletivo da turma " + filterClass];
       }
 
       const summary = await generatePedagogicalSummary(
         reportTarget === 'student' ? 'INDIVIDUAL' : 'TURMA',
         {
-          subject: subjectsInfo[teacherSubject as Subject]?.name || "Geral",
+          subject: subjectsInfo[teacherSubject as Subject]?.name || "Ciências Humanas",
           grades: targetGrades,
           notes: targetNotes,
           studentName: studentName || undefined,
@@ -743,6 +771,61 @@ export const AdminDashboard: React.FC = () => {
                              {sub.content?.map((item: any, i: number) => (
                                <div key={i}><p className="text-[9px] font-black text-slate-400 uppercase mb-1">Questão {i+1}</p><p className="text-sm font-medium text-slate-700 italic">"{item.answer}"</p></div>
                              ))}
+                          </div>
+                          
+                          {/* Área de Feedback */}
+                          <div className="mt-6 pt-6 border-t border-slate-100">
+                             {sub.teacher_feedback ? (
+                                <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100">
+                                   <div className="flex justify-between items-center mb-2">
+                                      <h4 className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-2">
+                                         <Reply size={14}/> Seu Feedback Enviado:
+                                      </h4>
+                                      <button 
+                                        onClick={() => {
+                                          setFeedbackingId(sub.id);
+                                          setTeacherFeedbackText(sub.teacher_feedback);
+                                        }}
+                                        className="text-[9px] font-black text-blue-400 uppercase hover:text-blue-600 transition-colors"
+                                      >
+                                        Editar
+                                      </button>
+                                   </div>
+                                   <p className="text-sm text-blue-800 italic font-medium">"{sub.teacher_feedback}"</p>
+                                </div>
+                             ) : feedbackingId === sub.id ? (
+                                <div className="space-y-3">
+                                   <textarea 
+                                      value={teacherFeedbackText}
+                                      onChange={e => setTeacherFeedbackText(e.target.value)}
+                                      placeholder="Escreva orientações, parabéns ou pontos de melhoria para o aluno..."
+                                      className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-tocantins-blue outline-none text-sm font-medium h-24"
+                                   />
+                                   <div className="flex gap-2">
+                                      <button 
+                                        onClick={() => handleSaveFeedback(sub.id)}
+                                        disabled={isSavingFeedback || !teacherFeedbackText.trim()}
+                                        className="bg-tocantins-blue text-white px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg flex items-center gap-2 disabled:opacity-50"
+                                      >
+                                         {isSavingFeedback ? <Loader2 className="animate-spin" size={14}/> : <Send size={14}/>}
+                                         Enviar Feedback
+                                      </button>
+                                      <button 
+                                        onClick={() => setFeedbackingId(null)}
+                                        className="bg-slate-200 text-slate-600 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest"
+                                      >
+                                         Cancelar
+                                      </button>
+                                   </div>
+                                </div>
+                             ) : (
+                                <button 
+                                   onClick={() => setFeedbackingId(sub.id)}
+                                   className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-md active:scale-95"
+                                >
+                                   <Reply size={16}/> Responder Atividade
+                                </button>
+                             )}
                           </div>
                        </div>
                     </div>

@@ -44,7 +44,7 @@ export const generateBimonthlyEvaluation = async (
   topics: string[]
 ): Promise<GeneratedEvaluation> => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API Key não configurada.");
+  if (!apiKey) throw new Error("API Key não encontrada no ambiente. Verifique o arquivo de configuração.");
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -75,7 +75,7 @@ export const generateBimonthlyEvaluation = async (
             },
             correctOption: { type: Type.STRING, description: "Apenas a letra da opção correta (a, b, c, d ou e)." },
             difficulty: { type: Type.STRING, enum: ["Fácil", "Médio", "Difícil"] },
-            explanation: { type: Type.STRING, description: "Explicação por que essa é a resposta correta baseada no conteúdo." }
+            explanation: { type: Type.STRING, description: "Explicação pedagógica da resposta correta." }
           },
           required: ["id", "textFragment", "questionText", "options", "correctOption", "difficulty", "explanation"]
         }
@@ -84,38 +84,40 @@ export const generateBimonthlyEvaluation = async (
     required: ["subject", "grade", "bimester", "questions"]
   };
 
-  const prompt = `
-    Você é um especialista em elaboração de itens para o ENEM (Exame Nacional do Ensino Médio).
-    Crie uma Avaliação Bimestral de ${subjectName} para a ${grade}ª Série, relativa ao ${bimester}º Bimestre.
-    
-    Conteúdos a serem abordados: ${topics.join(", ")}.
+  const systemInstruction = `Você é um consultor pedagógico sênior especialista em elaborar itens para o ENEM (Exame Nacional do Ensino Médio). 
+  Seu objetivo é criar avaliações de alta qualidade técnica seguindo a Teoria de Resposta ao Item (TRI).`;
+
+  const prompt = `Crie uma Avaliação Bimestral de ${subjectName} para a ${grade}ª Série, relativa ao ${bimester}º Bimestre.
+    Conteúdos a serem abordados obrigatoriamente: ${topics.join(", ")}.
     
     Regras da Avaliação:
-    1. Gere exatamente 5 questões de múltipla escolha (A a E).
-    2. Cada questão deve começar com um fragmento de texto (filosófico, geográfico, sociológico ou histórico) para interpretação.
-    3. Siga a lógica TRI (Teoria de Resposta ao Item):
-       - 2 questões fáceis (conceitos básicos).
-       - 2 questões médias (correlação e aplicação).
-       - 1 questão difícil (análise crítica complexa).
-    4. O enunciado deve ser contextualizado, evitando perguntas diretas do tipo "o que é".
-    5. As alternativas devem ter distratores plausíveis.
-  `;
+    1. Gere EXATAMENTE 5 questões inéditas de múltipla escolha.
+    2. Cada questão deve iniciar com um "texto-base" (fragmento histórico, geográfico ou filosófico).
+    3. Distribuição de Dificuldade: 2 Fáceis, 2 Médias, 1 Difícil.
+    4. O comando da questão deve exigir análise e não apenas memorização.
+    5. Retorne os dados estritamente no formato JSON solicitado.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
+      model: "gemini-3-pro-preview", // Alterado para Pro para tarefas complexas
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
+        systemInstruction,
         responseMimeType: "application/json",
         responseSchema: schema,
         temperature: 0.7,
       },
     });
 
-    return JSON.parse(response.text || "{}") as GeneratedEvaluation;
-  } catch (error) {
-    console.error("Erro na IA:", error);
-    throw new Error("Falha ao gerar avaliação via IA.");
+    if (!response.text) {
+      throw new Error("A IA retornou uma resposta vazia. Tente novamente.");
+    }
+
+    return JSON.parse(response.text.trim()) as GeneratedEvaluation;
+  } catch (error: any) {
+    console.error("Erro detalhado da IA:", error);
+    // Retornamos o erro real para o usuário conseguir identificar se é cota, segurança ou chave
+    throw new Error(error.message || "Erro desconhecido na comunicação com a IA.");
   }
 };
 
@@ -125,9 +127,7 @@ export const evaluateActivities = async (
   questionsAndAnswers: { question: string; answer: string }[]
 ): Promise<AIResponse> => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey.trim() === "") {
-    throw new Error("A chave de API (API Key) não está configurada.");
-  }
+  if (!apiKey) throw new Error("API Key não configurada.");
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -152,21 +152,24 @@ export const evaluateActivities = async (
     required: ["generalComment", "corrections"]
   };
 
-  const prompt = `Avalie como um professor de ${lessonTitle}. Teoria: ${theoryContext.substring(0, 2000)}. Respostas: ${JSON.stringify(questionsAndAnswers)}`;
+  const systemInstruction = `Você é um professor avaliador de ${lessonTitle}. Sua correção deve ser encorajadora e pedagógica.`;
+  const prompt = `Analise as respostas do aluno baseando-se nesta teoria: ${theoryContext.substring(0, 1500)}.
+  Respostas enviadas: ${JSON.stringify(questionsAndAnswers)}`;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
+        systemInstruction,
         responseMimeType: "application/json",
         responseSchema: schema,
-        temperature: 0.3,
+        temperature: 0.2,
       },
     });
     return JSON.parse(response.text || "{}") as AIResponse;
-  } catch (error) {
-    throw new Error("Erro na conexão com o assistente.");
+  } catch (error: any) {
+    throw new Error("Erro na análise automática: " + error.message);
   }
 };
 
@@ -185,33 +188,23 @@ export const generatePedagogicalSummary = async (
 
   const ai = new GoogleGenAI({ apiKey });
   
-  const prompt = `
-    Atue como um Coordenador Pedagógico especialista em Ciências Humanas.
-    Gere um relatório analítico e profissional em português para o professor de ${data.subject}.
-    
-    TIPO DE RELATÓRIO: ${context}
-    ${data.studentName ? `ESTUDANTE: ${data.studentName}` : ''}
-    TURMA: ${data.schoolClass}
-    HISTÓRICO DE NOTAS: ${data.grades.join(", ")}
-    OBSERVAÇÕES DO PROFESSOR: ${data.notes.join(" | ")}
-    
-    O relatório deve conter:
-    1. Resumo do Desempenho (tendência de notas).
-    2. Análise de Comportamento/Participação baseada nas observações.
-    3. Sugestões de Intervenção Pedagógica (pontos a reforçar).
-    
-    Mantenha um tom ético, encorajador e focado no crescimento do aluno.
-    Use Markdown para formatação.
-  `;
+  const systemInstruction = "Você é um Coordenador Pedagógico sênior. Seu tom deve ser profissional, ético e focado no crescimento acadêmico.";
+  const prompt = `Gere um relatório analítico para o professor de ${data.subject}.
+    TIPO: ${context} | TURMA: ${data.schoolClass} ${data.studentName ? `| ESTUDANTE: ${data.studentName}` : ''}
+    DADOS: Notas: [${data.grades.join(", ")}] | Observações: ${data.notes.join(" | ")}
+    O relatório deve conter Resumo de Desempenho e Sugestões de Intervenção em Markdown.`;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: { temperature: 0.5 }
+      contents: [{ parts: [{ text: prompt }] }],
+      config: { 
+        systemInstruction,
+        temperature: 0.5 
+      }
     });
-    return response.text || "Não foi possível gerar o relatório.";
-  } catch (e) {
-    return "Erro ao processar síntese pedagógica com IA.";
+    return response.text || "Não foi possível gerar o texto do relatório.";
+  } catch (error: any) {
+    return "Erro ao processar síntese: " + error.message;
   }
 };
