@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { subjectsInfo, ADMIN_PASSWORDS, curriculumData } from '../data';
 import { Subject } from '../types';
@@ -35,6 +35,12 @@ export const AdminDashboard: React.FC = () => {
   const [studentNote, setStudentNote] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [studentNotesHistory, setStudentNotesHistory] = useState<any[]>([]);
+
+  // Estados do Chat
+  const [selectedChatStudentId, setSelectedChatStudentId] = useState<string | null>(null);
+  const [teacherReplyText, setTeacherReplyText] = useState('');
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Estados de Feedback do Professor
   const [feedbackingId, setFeedbackingId] = useState<string | null>(null);
@@ -111,6 +117,26 @@ export const AdminDashboard: React.FC = () => {
     } finally { setLoading(false); }
   };
 
+  // Realtime subscription para o professor
+  useEffect(() => {
+    if (!teacherSubject) return;
+
+    const channel = supabase.channel('admin-realtime')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'messages',
+        filter: teacherSubject !== 'SUPER_ADMIN' ? `subject=eq.${teacherSubject}` : undefined
+      }, (payload) => {
+        setMessages(prev => [...prev, payload.new]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [teacherSubject]);
+
   useEffect(() => {
     if (teacherSubject) {
       loadData();
@@ -122,6 +148,10 @@ export const AdminDashboard: React.FC = () => {
         fetchStudentNotes(selectedStudent.id);
     }
   }, [selectedStudent, teacherSubject]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, selectedChatStudentId]);
 
   const fetchStudentNotes = async (studentId: string) => {
     const { data } = await supabase
@@ -152,6 +182,33 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!teacherReplyText.trim() || !selectedChatStudentId || !teacherSubject) return;
+    setIsSendingReply(true);
+    
+    const studentObj = students.find(s => s.id === selectedChatStudentId);
+    
+    try {
+      const { error } = await supabase.from('messages').insert([{
+        sender_id: selectedChatStudentId,
+        sender_name: studentObj?.name || 'Estudante',
+        school_class: studentObj?.school_class || 'N/A',
+        grade: studentObj?.grade || 'N/A',
+        content: teacherReplyText.trim(),
+        is_from_teacher: true,
+        subject: teacherSubject
+      }]);
+
+      if (error) throw error;
+      setTeacherReplyText('');
+    } catch (e: any) {
+      alert("Erro ao enviar mensagem: " + e.message);
+    } finally {
+      setIsSendingReply(false);
+    }
+  };
+
   const handleSaveFeedback = async (submissionId: string) => {
     if (!teacherFeedbackText.trim()) return;
     setIsSavingFeedback(true);
@@ -163,7 +220,6 @@ export const AdminDashboard: React.FC = () => {
 
       if (error) throw error;
 
-      // Atualiza localmente
       setSubmissions(prev => prev.map(s => s.id === submissionId ? { ...s, teacher_feedback: teacherFeedbackText.trim() } : s));
       setFeedbackingId(null);
       setTeacherFeedbackText('');
@@ -331,6 +387,34 @@ export const AdminDashboard: React.FC = () => {
     });
   }, [students, searchTerm, filterGrade, filterClass]);
 
+  // Lista de conversas para o professor
+  const chatSessions = useMemo(() => {
+    const groups: Record<string, any> = {};
+    messages.forEach(m => {
+        if (!groups[m.sender_id]) {
+            const student = students.find(s => s.id === m.sender_id);
+            groups[m.sender_id] = {
+                studentId: m.sender_id,
+                studentName: m.sender_name,
+                schoolClass: m.school_class,
+                photoUrl: student?.photo_url,
+                lastMessage: m.content,
+                timestamp: m.created_at,
+                unread: !m.is_from_teacher
+            };
+        } else {
+            groups[m.sender_id].lastMessage = m.content;
+            groups[m.sender_id].timestamp = m.created_at;
+            if (!m.is_from_teacher) groups[m.sender_id].unread = true;
+        }
+    });
+    return Object.values(groups).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [messages, students]);
+
+  const selectedChatMessages = useMemo(() => {
+    return messages.filter(m => m.sender_id === selectedChatStudentId);
+  }, [messages, selectedChatStudentId]);
+
   if (!teacherSubject) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4 font-sans">
@@ -378,7 +462,7 @@ export const AdminDashboard: React.FC = () => {
                             <button 
                                 onClick={() => {
                                     setActiveTab('messages');
-                                    setSearchTerm(selectedStudent.name);
+                                    setSelectedChatStudentId(selectedStudent.id);
                                     setSelectedStudent(null);
                                 }}
                                 className="mt-4 flex items-center gap-2 bg-tocantins-blue text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
@@ -470,6 +554,7 @@ export const AdminDashboard: React.FC = () => {
            <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">
              {activeTab === 'reports' ? 'Relatórios Pedagógicos' : 
               activeTab === 'lessons_list' ? 'Roteiro de Conteúdos' : 
+              activeTab === 'messages' ? 'Central de Mensagens' :
               'Gestão Pedagógica'}
            </h1>
            <button onClick={loadData} className="p-3 text-slate-400 hover:text-tocantins-blue bg-slate-100 rounded-xl transition-all cursor-pointer">
@@ -479,8 +564,7 @@ export const AdminDashboard: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto p-4 lg:p-10 bg-slate-50/50">
            
-           {/* FILTROS GERAIS */}
-           {activeTab !== 'exam_generator' && activeTab !== 'lessons_list' && (
+           {activeTab !== 'exam_generator' && activeTab !== 'lessons_list' && activeTab !== 'messages' && (
               <div className="mb-8 bg-white p-6 rounded-[32px] shadow-sm border border-slate-200 flex flex-wrap gap-4 items-end animate-in fade-in no-print">
                  <div className="flex-1 min-w-[200px]">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1 block">Buscar por Nome</label>
@@ -504,6 +588,101 @@ export const AdminDashboard: React.FC = () => {
                        <option value="all">Todas</option>
                        {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
+                 </div>
+              </div>
+           )}
+
+           {/* ABA: MENSAGENS / CHAT COMPLETO */}
+           {activeTab === 'messages' && (
+              <div className="max-w-6xl mx-auto h-full flex flex-col animate-in fade-in">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 overflow-hidden h-[calc(100vh-160px)]">
+                    
+                    {/* Coluna Lateral: Lista de Alunos */}
+                    <div className="bg-white rounded-[32px] border border-slate-200 overflow-hidden flex flex-col">
+                        <div className="p-5 border-b bg-slate-50">
+                            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest">Conversas</h3>
+                        </div>
+                        <div className="flex-1 overflow-y-auto divide-y">
+                            {chatSessions.length === 0 ? (
+                                <div className="p-10 text-center text-slate-400 text-[10px] font-bold uppercase">Nenhuma conversa iniciada.</div>
+                            ) : (
+                                chatSessions.map(session => (
+                                    <button 
+                                        key={session.studentId}
+                                        onClick={() => setSelectedChatStudentId(session.studentId)}
+                                        className={`w-full p-4 flex items-center gap-4 transition-colors text-left hover:bg-slate-50 ${selectedChatStudentId === session.studentId ? 'bg-blue-50 border-r-4 border-tocantins-blue' : ''}`}
+                                    >
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 flex-shrink-0 overflow-hidden border">
+                                            {session.photoUrl ? <img src={session.photoUrl} className="w-full h-full object-cover"/> : <User className="m-auto mt-2 text-slate-300"/>}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-baseline mb-1">
+                                                <h4 className="font-black text-slate-800 text-[10px] uppercase truncate">{session.studentName}</h4>
+                                                <span className="text-[8px] text-slate-400 font-bold">{new Date(session.timestamp).toLocaleDateString()}</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-500 font-medium truncate">{session.lastMessage}</p>
+                                            <p className="text-[8px] font-black text-tocantins-blue uppercase mt-1">Turma: {session.schoolClass}</p>
+                                        </div>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Janela de Chat */}
+                    <div className="md:col-span-2 bg-white rounded-[32px] border border-slate-200 overflow-hidden flex flex-col shadow-sm">
+                        {selectedChatStudentId ? (
+                            <>
+                                <div className="p-4 border-b bg-slate-50 flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-slate-200 overflow-hidden">
+                                        <img src={students.find(s => s.id === selectedChatStudentId)?.photo_url} className="w-full h-full object-cover"/>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-black text-slate-800 text-xs uppercase">{students.find(s => s.id === selectedChatStudentId)?.name}</h4>
+                                        <p className="text-[8px] font-black text-tocantins-blue uppercase">Conversando Agora</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
+                                    {selectedChatMessages.map(m => (
+                                        <div key={m.id} className={`flex ${m.is_from_teacher ? 'justify-end' : 'justify-start'}`}>
+                                            <div className={`max-w-[80%] p-4 rounded-3xl shadow-sm text-sm ${m.is_from_teacher ? 'bg-slate-900 text-white rounded-tr-none' : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'}`}>
+                                                <p className="font-medium leading-relaxed">{m.content}</p>
+                                                <p className={`text-[8px] mt-2 font-bold uppercase ${m.is_from_teacher ? 'text-slate-400' : 'text-slate-300'}`}>
+                                                    {new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div ref={chatEndRef} />
+                                </div>
+
+                                <form onSubmit={handleSendMessage} className="p-4 bg-white border-t flex gap-2">
+                                    <input 
+                                        type="text"
+                                        value={teacherReplyText}
+                                        onChange={e => setTeacherReplyText(e.target.value)}
+                                        placeholder="Digite sua resposta..."
+                                        className="flex-1 p-4 bg-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-tocantins-blue text-sm font-medium"
+                                        disabled={isSendingReply}
+                                    />
+                                    <button 
+                                        type="submit"
+                                        disabled={!teacherReplyText.trim() || isSendingReply}
+                                        className="bg-tocantins-blue text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg hover:bg-blue-800 disabled:opacity-50 transition-all active:scale-95"
+                                    >
+                                        {isSendingReply ? <Loader2 className="animate-spin" size={20}/> : <Send size={20}/>}
+                                    </button>
+                                </form>
+                            </>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center text-center p-10 opacity-30">
+                                <MessageSquare size={64} className="mb-4 text-slate-300" />
+                                <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">Nenhuma conversa aberta</h4>
+                                <p className="text-[10px] font-bold text-slate-400 mt-2">Selecione um aluno na lista ao lado para iniciar o atendimento</p>
+                            </div>
+                        )}
+                    </div>
                  </div>
               </div>
            )}
@@ -831,19 +1010,6 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   ))
                 }
-              </div>
-           )}
-
-           {/* MENSAGENS / CHAT */}
-           {activeTab === 'messages' && (
-              <div className="max-w-5xl mx-auto space-y-4 animate-in fade-in">
-                 <div className="bg-tocantins-blue p-8 rounded-[40px] text-white shadow-xl mb-6">
-                    <h3 className="text-2xl font-black uppercase tracking-tighter">Central de Mensagens</h3>
-                    <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mt-1">Envie alertas gerais ou responda dúvidas individuais</p>
-                 </div>
-                 <div className="bg-white rounded-[32px] p-6 border text-center text-slate-400 py-20 font-black uppercase text-xs">
-                    Selecione um aluno no Carômetro para iniciar uma conversa direta ou use os filtros acima para ver mensagens enviadas.
-                 </div>
               </div>
            )}
 
