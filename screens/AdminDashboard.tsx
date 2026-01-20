@@ -11,7 +11,8 @@ import {
   MessageSquare, Loader2, X, Save, 
   RefreshCw, Home, ShieldCheck, Trash2, Settings,
   Search, Award, StickyNote, Clock, Send, UserCircle, BrainCircuit, Sparkles, FileText, CheckCircle2,
-  Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2
+  Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2,
+  Library, ListChecks
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -27,7 +28,7 @@ export const AdminDashboard: React.FC = () => {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'submissions' | 'evaluations' | 'messages' | 'students' | 'manage' | 'exam_generator' | 'reports'>('submissions');
+  const [activeTab, setActiveTab] = useState<'submissions' | 'evaluations' | 'messages' | 'students' | 'manage' | 'exam_generator' | 'reports' | 'lessons_list'>('submissions');
   
   // Estados do Carômetro
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
@@ -146,10 +147,6 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  /**
-   * FIX: Implemented handleGenerateExam to trigger AI generation of evaluation questions.
-   * It gathers topics from the current curriculumData based on the selected grade and bimester.
-   */
   const handleGenerateExam = async () => {
     if (!teacherSubject || teacherSubject === 'SUPER_ADMIN') return;
     
@@ -184,9 +181,6 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  /**
-   * FIX: Implemented handlePublishExam to save the AI-generated exam into the database.
-   */
   const handlePublishExam = async () => {
     if (!generatedExam || !teacherSubject) return;
     
@@ -245,7 +239,6 @@ export const AdminDashboard: React.FC = () => {
         
         targetNotes = (notes || []).map(n => n.content);
       } else {
-        // Relatório por Turma
         if (filterClass === 'all') {
           alert("Selecione uma turma nos filtros acima para gerar o relatório do grupo.");
           setIsGeneratingReport(false);
@@ -255,7 +248,6 @@ export const AdminDashboard: React.FC = () => {
           .filter(s => s.school_class === filterClass)
           .map(s => Number(s.score));
         
-        // Em relatório de turma, pegamos observações gerais de todos os alunos daquela turma
         targetNotes = ["Relatório coletivo de desempenho e engajamento da turma."];
       }
 
@@ -416,6 +408,11 @@ export const AdminDashboard: React.FC = () => {
           <button onClick={() => setActiveTab('submissions')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'submissions' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
             <BookOpen size={18}/> Atividades Diárias
           </button>
+          
+          <button onClick={() => setActiveTab('lessons_list')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'lessons_list' ? 'bg-amber-500 text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
+            <Library size={18}/> Plano de Aulas
+          </button>
+
           {!isSuper && (
             <button onClick={() => setActiveTab('exam_generator')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'exam_generator' ? 'bg-purple-600 text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}>
               <BrainCircuit size={18}/> Gerar Avaliação
@@ -443,7 +440,9 @@ export const AdminDashboard: React.FC = () => {
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="bg-white border-b p-6 flex justify-between items-center z-10 shadow-sm no-print">
            <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">
-             {activeTab === 'reports' ? 'Relatórios Pedagógicos' : 'Gestão Pedagógica'}
+             {activeTab === 'reports' ? 'Relatórios Pedagógicos' : 
+              activeTab === 'lessons_list' ? 'Roteiro de Conteúdos' : 
+              'Gestão Pedagógica'}
            </h1>
            <button onClick={loadData} className="p-3 text-slate-400 hover:text-tocantins-blue bg-slate-100 rounded-xl transition-all cursor-pointer">
              <RefreshCw size={20} className={loading ? 'animate-spin' : ''}/>
@@ -452,8 +451,8 @@ export const AdminDashboard: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto p-4 lg:p-10 bg-slate-50/50">
            
-           {/* FILTROS GERAIS (Ocultos em alguns contextos ou na impressão) */}
-           {activeTab !== 'exam_generator' && (
+           {/* FILTROS GERAIS */}
+           {activeTab !== 'exam_generator' && activeTab !== 'lessons_list' && (
               <div className="mb-8 bg-white p-6 rounded-[32px] shadow-sm border border-slate-200 flex flex-wrap gap-4 items-end animate-in fade-in no-print">
                  <div className="flex-1 min-w-[200px]">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1 block">Buscar por Nome</label>
@@ -477,6 +476,74 @@ export const AdminDashboard: React.FC = () => {
                        <option value="all">Todas</option>
                        {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
+                 </div>
+              </div>
+           )}
+
+           {/* ABA: PLANO DE AULAS */}
+           {activeTab === 'lessons_list' && (
+              <div className="max-w-4xl mx-auto space-y-12 animate-in slide-in-from-bottom-4">
+                 <div className="bg-amber-500 p-8 rounded-[40px] text-white shadow-xl flex items-center justify-between">
+                    <div>
+                        <h2 className="text-2xl font-black uppercase tracking-tighter">Minha Sequência Didática</h2>
+                        <p className="text-amber-100 text-xs font-bold uppercase tracking-widest mt-1">
+                            {isSuper ? 'Visualização Geral (Super Admin)' : `Disciplina: ${subjectsInfo[teacherSubject as Subject].name}`}
+                        </p>
+                    </div>
+                    <Library size={48} className="opacity-20" />
+                 </div>
+
+                 {curriculumData.map(grade => (
+                    <div key={grade.id} className="space-y-6">
+                        <div className="flex items-center gap-3 ml-4">
+                            <span className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black">{grade.id}º</span>
+                            <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter">{grade.title}</h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {grade.bimesters.map(bimester => {
+                                const filteredLessons = isSuper 
+                                    ? bimester.lessons 
+                                    : bimester.lessons.filter(l => l.subject === teacherSubject);
+
+                                if (filteredLessons.length === 0) return null;
+
+                                return (
+                                    <div key={bimester.id} className="bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden">
+                                        <div className="bg-slate-50 px-6 py-4 border-b">
+                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{bimester.title}</h4>
+                                        </div>
+                                        <div className="divide-y divide-slate-50">
+                                            {filteredLessons.map((lesson, idx) => (
+                                                <div key={lesson.id} className="p-5 hover:bg-amber-50/30 transition-colors group flex items-start gap-4">
+                                                    <span className="text-[10px] font-black text-amber-500 mt-1">{String(idx + 1).padStart(2, '0')}</span>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-slate-700 group-hover:text-amber-600 transition-colors leading-tight">
+                                                            {lesson.title.replace(/^L\d+:\s*/, '')}
+                                                        </p>
+                                                        <div className="flex gap-2 mt-2">
+                                                            <span className="text-[8px] font-black bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full uppercase">ID: {lesson.id}</span>
+                                                            {isSuper && (
+                                                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${subjectsInfo[lesson.subject].color.replace('bg-', 'bg-opacity-10 text-')}`}>
+                                                                    {subjectsInfo[lesson.subject].name}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                 ))}
+                 
+                 <div className="py-10 text-center">
+                    <button onClick={() => window.print()} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-3 mx-auto hover:bg-slate-800 transition-all">
+                        <Printer size={18}/> Baixar Roteiro em PDF
+                    </button>
                  </div>
               </div>
            )}
