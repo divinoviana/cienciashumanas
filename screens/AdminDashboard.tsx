@@ -12,7 +12,7 @@ import {
   RefreshCw, Home, ShieldCheck, Trash2, Settings,
   Search, Award, StickyNote, Clock, Send, UserCircle, BrainCircuit, Sparkles, FileText, CheckCircle2,
   Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2,
-  Library, ListChecks, Reply
+  Library, ListChecks, Reply, Key, UserMinus, AlertTriangle
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -179,6 +179,52 @@ export const AdminDashboard: React.FC = () => {
         alert("Erro ao salvar nota: " + e.message);
     } finally {
         setIsSavingNote(false);
+    }
+  };
+
+  // Funções Administrativas de Super Admin
+  const handleResetPassword = async () => {
+    if (!selectedStudent || !isSuper) return;
+    const newPass = prompt("Digite a nova senha para o estudante:", "123456");
+    if (!newPass) return;
+
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ password: newPass })
+        .eq('id', selectedStudent.id);
+
+      if (error) throw error;
+      alert("Senha resetada com sucesso para: " + newPass);
+    } catch (e: any) {
+      alert("Erro ao resetar senha: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!selectedStudent || !isSuper) return;
+    if (!confirm(`TEM CERTEZA? Isso excluirá permanentemente a conta de ${selectedStudent.name}, suas notas e mensagens.`)) return;
+
+    setLoading(true);
+    try {
+      // Supabase RLS/Cascade deve tratar as dependências, mas vamos garantir
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', selectedStudent.id);
+
+      if (error) throw error;
+      
+      alert("Estudante removido do sistema.");
+      setStudents(prev => prev.filter(s => s.id !== selectedStudent.id));
+      setSelectedStudent(null);
+    } catch (e: any) {
+      alert("Erro ao excluir: " + e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -456,25 +502,56 @@ export const AdminDashboard: React.FC = () => {
                         <div className="w-32 h-32 rounded-[32px] overflow-hidden border-4 border-white shadow-xl flex-shrink-0">
                             <img src={selectedStudent.photo_url} className="w-full h-full object-cover" />
                         </div>
-                        <div>
+                        <div className="flex-1">
                             <h4 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">{selectedStudent.name}</h4>
                             <p className="text-indigo-600 font-black text-xs uppercase tracking-widest">{selectedStudent.grade}ª Série • Turma {selectedStudent.school_class}</p>
-                            <button 
-                                onClick={() => {
-                                    setActiveTab('messages');
-                                    setSelectedChatStudentId(selectedStudent.id);
-                                    setSelectedStudent(null);
-                                }}
-                                className="mt-4 flex items-center gap-2 bg-tocantins-blue text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
-                            >
-                                <MessageSquare size={16}/> Chamar no Chat
-                            </button>
+                            <p className="text-slate-400 text-xs font-bold mt-1">E-mail: {selectedStudent.email}</p>
+                            
+                            <div className="flex flex-wrap gap-2 mt-4">
+                                <button 
+                                    onClick={() => {
+                                        setActiveTab('messages');
+                                        setSelectedChatStudentId(selectedStudent.id);
+                                        setSelectedStudent(null);
+                                    }}
+                                    className="flex items-center gap-2 bg-tocantins-blue text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                                >
+                                    <MessageSquare size={16}/> Chat
+                                </button>
+
+                                {isSuper && (
+                                    <>
+                                        <button 
+                                            onClick={handleResetPassword}
+                                            className="flex items-center gap-2 bg-amber-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                                        >
+                                            <Key size={16}/> Resetar Senha
+                                        </button>
+                                        <button 
+                                            onClick={handleDeleteStudent}
+                                            className="flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                                        >
+                                            <UserMinus size={16}/> Excluir Conta
+                                        </button>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
 
+                    {isSuper && (
+                      <div className="bg-red-50 p-4 rounded-3xl border border-red-100 flex items-start gap-3">
+                         <AlertTriangle className="text-red-500 shrink-0" size={20}/>
+                         <div>
+                            <p className="text-[10px] font-black text-red-600 uppercase">Zona de Administração</p>
+                            <p className="text-xs text-red-700 font-medium">Como Super Admin, você tem permissão total sobre os dados deste usuário. Use com cautela.</p>
+                         </div>
+                      </div>
+                    )}
+
                     <div className="space-y-4">
                         <h5 className="font-black text-slate-400 text-[10px] uppercase tracking-widest flex items-center gap-2">
-                            <ClipboardEdit size={14}/> Anotações Pedagógicas (Somente você vê)
+                            <ClipboardEdit size={14}/> Anotações Pedagógicas (Somente Docentes veem)
                         </h5>
                         <div className="flex gap-2">
                             <textarea 

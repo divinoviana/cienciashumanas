@@ -8,9 +8,8 @@ export default defineConfig(() => {
     plugins: [react()],
     base: './',
     define: {
-      // Injeta a API Key a partir do ambiente de execução (process.env.API_KEY)
-      // Certifique-se de que a chave fornecida esteja configurada no ambiente/plataforma.
-      'process.env.API_KEY': JSON.stringify(process.env.API_KEY)
+      // Injeta a chave de API fornecida pelo usuário para uso via process.env.API_KEY
+      'process.env.API_KEY': JSON.stringify('AIzaSyDyl-glllc5TSUgNWSCnPUaxO5itH9pi18')
     }
   };
 });

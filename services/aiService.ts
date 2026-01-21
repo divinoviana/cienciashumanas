@@ -44,7 +44,7 @@ export const generateBimonthlyEvaluation = async (
   topics: string[]
 ): Promise<GeneratedEvaluation> => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API Key não encontrada no ambiente. Verifique o arquivo de configuração.");
+  if (!apiKey) throw new Error("Configuração de API pendente. Contate o suporte.");
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -60,8 +60,8 @@ export const generateBimonthlyEvaluation = async (
           type: Type.OBJECT,
           properties: {
             id: { type: Type.INTEGER },
-            textFragment: { type: Type.STRING, description: "Um fragmento de texto motivador, filósofo ou contexto histórico." },
-            questionText: { type: Type.STRING, description: "O enunciado da questão baseado no texto." },
+            textFragment: { type: Type.STRING },
+            questionText: { type: Type.STRING },
             options: {
               type: Type.OBJECT,
               properties: {
@@ -73,9 +73,9 @@ export const generateBimonthlyEvaluation = async (
               },
               required: ["a", "b", "c", "d", "e"]
             },
-            correctOption: { type: Type.STRING, description: "Apenas a letra da opção correta (a, b, c, d ou e)." },
-            difficulty: { type: Type.STRING, enum: ["Fácil", "Médio", "Difícil"] },
-            explanation: { type: Type.STRING, description: "Explicação pedagógica da resposta correta." }
+            correctOption: { type: Type.STRING },
+            difficulty: { type: Type.STRING },
+            explanation: { type: Type.STRING }
           },
           required: ["id", "textFragment", "questionText", "options", "correctOption", "difficulty", "explanation"]
         }
@@ -84,40 +84,30 @@ export const generateBimonthlyEvaluation = async (
     required: ["subject", "grade", "bimester", "questions"]
   };
 
-  const systemInstruction = `Você é um consultor pedagógico sênior especialista em elaborar itens para o ENEM (Exame Nacional do Ensino Médio). 
-  Seu objetivo é criar avaliações de alta qualidade técnica seguindo a Teoria de Resposta ao Item (TRI).`;
+  const systemInstruction = "Você é um professor especialista em avaliações do ENEM. Gere questões de múltipla escolha com alta qualidade pedagógica.";
 
-  const prompt = `Crie uma Avaliação Bimestral de ${subjectName} para a ${grade}ª Série, relativa ao ${bimester}º Bimestre.
-    Conteúdos a serem abordados obrigatoriamente: ${topics.join(", ")}.
-    
-    Regras da Avaliação:
-    1. Gere EXATAMENTE 5 questões inéditas de múltipla escolha.
-    2. Cada questão deve iniciar com um "texto-base" (fragmento histórico, geográfico ou filosófico).
-    3. Distribuição de Dificuldade: 2 Fáceis, 2 Médias, 1 Difícil.
-    4. O comando da questão deve exigir análise e não apenas memorização.
-    5. Retorne os dados estritamente no formato JSON solicitado.`;
+  const prompt = `Gere uma prova de ${subjectName} para a ${grade}ª Série, ${bimester}º Bimestre.
+    Temas: ${topics.join(", ")}.
+    Crie 5 questões com textos motivadores (fragmentos de autores ou fatos históricos).
+    Retorne os dados EXCLUSIVAMENTE em formato JSON.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview", // Alterado para Pro para tarefas complexas
+      model: "gemini-3-flash-preview", // Flash é mais estável para safras constantes de JSON
       contents: [{ parts: [{ text: prompt }] }],
       config: {
         systemInstruction,
         responseMimeType: "application/json",
         responseSchema: schema,
-        temperature: 0.7,
+        temperature: 0.4, // Menor temperatura para maior consistência na estrutura
       },
     });
 
-    if (!response.text) {
-      throw new Error("A IA retornou uma resposta vazia. Tente novamente.");
-    }
-
+    if (!response.text) throw new Error("Resposta da IA vazia.");
     return JSON.parse(response.text.trim()) as GeneratedEvaluation;
   } catch (error: any) {
-    console.error("Erro detalhado da IA:", error);
-    // Retornamos o erro real para o usuário conseguir identificar se é cota, segurança ou chave
-    throw new Error(error.message || "Erro desconhecido na comunicação com a IA.");
+    console.error("Erro na IA:", error);
+    throw new Error(error.message || "Erro ao conectar com servidor de IA.");
   }
 };
 
@@ -127,7 +117,7 @@ export const evaluateActivities = async (
   questionsAndAnswers: { question: string; answer: string }[]
 ): Promise<AIResponse> => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API Key não configurada.");
+  if (!apiKey) throw new Error("Configuração de API pendente.");
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -152,9 +142,8 @@ export const evaluateActivities = async (
     required: ["generalComment", "corrections"]
   };
 
-  const systemInstruction = `Você é um professor avaliador de ${lessonTitle}. Sua correção deve ser encorajadora e pedagógica.`;
-  const prompt = `Analise as respostas do aluno baseando-se nesta teoria: ${theoryContext.substring(0, 1500)}.
-  Respostas enviadas: ${JSON.stringify(questionsAndAnswers)}`;
+  const systemInstruction = `Você é um professor avaliador de ${lessonTitle}. Dê feedbacks encorajadores.`;
+  const prompt = `Teoria Base: ${theoryContext.substring(0, 1000)}. Respostas: ${JSON.stringify(questionsAndAnswers)}`;
 
   try {
     const response = await ai.models.generateContent({
@@ -164,7 +153,6 @@ export const evaluateActivities = async (
         systemInstruction,
         responseMimeType: "application/json",
         responseSchema: schema,
-        temperature: 0.2,
       },
     });
     return JSON.parse(response.text || "{}") as AIResponse;
@@ -184,27 +172,21 @@ export const generatePedagogicalSummary = async (
   }
 ): Promise<string> => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API Key não configurada.");
+  if (!apiKey) throw new Error("Configuração de API pendente.");
 
   const ai = new GoogleGenAI({ apiKey });
   
-  const systemInstruction = "Você é um Coordenador Pedagógico sênior. Seu tom deve ser profissional, ético e focado no crescimento acadêmico.";
-  const prompt = `Gere um relatório analítico para o professor de ${data.subject}.
-    TIPO: ${context} | TURMA: ${data.schoolClass} ${data.studentName ? `| ESTUDANTE: ${data.studentName}` : ''}
-    DADOS: Notas: [${data.grades.join(", ")}] | Observações: ${data.notes.join(" | ")}
-    O relatório deve conter Resumo de Desempenho e Sugestões de Intervenção em Markdown.`;
+  const systemInstruction = "Você é um Coordenador Pedagógico sênior. Gere relatórios profissionais em Markdown.";
+  const prompt = `Analise o desempenho em ${data.subject}. Tipo: ${context}. Turma: ${data.schoolClass}. Notas: [${data.grades.join(", ")}]. Notas do professor: ${data.notes.join("; ")}`;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [{ parts: [{ text: prompt }] }],
-      config: { 
-        systemInstruction,
-        temperature: 0.5 
-      }
+      config: { systemInstruction }
     });
-    return response.text || "Não foi possível gerar o texto do relatório.";
+    return response.text || "Erro ao gerar relatório.";
   } catch (error: any) {
-    return "Erro ao processar síntese: " + error.message;
+    return "Falha na síntese: " + error.message;
   }
 };
