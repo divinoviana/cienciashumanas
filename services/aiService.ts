@@ -37,16 +37,24 @@ export interface GeneratedEvaluation {
   questions: EvaluationQuestion[];
 }
 
+/**
+ * Inicializa a IA usando a chave de ambiente protegida.
+ */
+const getAIClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API_KEY não encontrada no ambiente. Verifique as configurações do Vercel.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
 export const generateBimonthlyEvaluation = async (
   subjectName: string,
   grade: string,
   bimester: string,
   topics: string[]
 ): Promise<GeneratedEvaluation> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("Configuração de API pendente. Contate o suporte.");
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = getAIClient();
 
   const schema = {
     type: Type.OBJECT,
@@ -84,30 +92,30 @@ export const generateBimonthlyEvaluation = async (
     required: ["subject", "grade", "bimester", "questions"]
   };
 
-  const systemInstruction = "Você é um professor especialista em avaliações do ENEM. Gere questões de múltipla escolha com alta qualidade pedagógica.";
+  const systemInstruction = "Você é um professor especialista em avaliações do ENEM. Gere questões de múltipla escolha com alta qualidade pedagógica e textos motivadores profundos.";
 
   const prompt = `Gere uma prova de ${subjectName} para a ${grade}ª Série, ${bimester}º Bimestre.
     Temas: ${topics.join(", ")}.
-    Crie 5 questões com textos motivadores (fragmentos de autores ou fatos históricos).
-    Retorne os dados EXCLUSIVAMENTE em formato JSON.`;
+    Crie 5 questões originais com fragmentos de autores ou fatos históricos.
+    Retorne os dados estritamente no formato JSON definido no schema.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview", // Flash é mais estável para safras constantes de JSON
+      model: "gemini-3-flash-preview",
       contents: [{ parts: [{ text: prompt }] }],
       config: {
         systemInstruction,
         responseMimeType: "application/json",
         responseSchema: schema,
-        temperature: 0.4, // Menor temperatura para maior consistência na estrutura
+        temperature: 0.4,
       },
     });
 
-    if (!response.text) throw new Error("Resposta da IA vazia.");
+    if (!response.text) throw new Error("A IA retornou uma resposta vazia.");
     return JSON.parse(response.text.trim()) as GeneratedEvaluation;
   } catch (error: any) {
-    console.error("Erro na IA:", error);
-    throw new Error(error.message || "Erro ao conectar com servidor de IA.");
+    console.error("Erro na geração da avaliação:", error);
+    throw new Error("Falha na IA: A chave de API pode estar incorreta ou sem créditos.");
   }
 };
 
@@ -116,10 +124,7 @@ export const evaluateActivities = async (
   theoryContext: string,
   questionsAndAnswers: { question: string; answer: string }[]
 ): Promise<AIResponse> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("Configuração de API pendente.");
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = getAIClient();
 
   const schema = {
     type: Type.OBJECT,
@@ -142,8 +147,10 @@ export const evaluateActivities = async (
     required: ["generalComment", "corrections"]
   };
 
-  const systemInstruction = `Você é um professor avaliador de ${lessonTitle}. Dê feedbacks encorajadores.`;
-  const prompt = `Teoria Base: ${theoryContext.substring(0, 1000)}. Respostas: ${JSON.stringify(questionsAndAnswers)}`;
+  const systemInstruction = `Você é um professor avaliador da disciplina que engloba o tema: ${lessonTitle}. Forneça correções pedagógicas, críticas e encorajadoras.`;
+  const prompt = `Teoria de base: ${theoryContext.substring(0, 1500)}. 
+    Analise as seguintes respostas dos alunos e atribua notas de 0 a 10: 
+    ${JSON.stringify(questionsAndAnswers)}`;
 
   try {
     const response = await ai.models.generateContent({
@@ -171,13 +178,19 @@ export const generatePedagogicalSummary = async (
     schoolClass: string
   }
 ): Promise<string> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("Configuração de API pendente.");
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = getAIClient();
   
-  const systemInstruction = "Você é um Coordenador Pedagógico sênior. Gere relatórios profissionais em Markdown.";
-  const prompt = `Analise o desempenho em ${data.subject}. Tipo: ${context}. Turma: ${data.schoolClass}. Notas: [${data.grades.join(", ")}]. Notas do professor: ${data.notes.join("; ")}`;
+  const systemInstruction = "Você é um Coordenador Pedagógico experiente. Sua tarefa é criar um relatório formal e analítico em Markdown sobre o desempenho escolar.";
+  
+  const prompt = `Analise os seguintes dados pedagógicos:
+    Contexto: ${context}
+    Disciplina: ${data.subject}
+    Turma: ${data.schoolClass}
+    ${data.studentName ? `Aluno: ${data.studentName}` : ''}
+    Notas das Atividades: [${data.grades.join(", ")}]
+    Observações do Professor: ${data.notes.join(" | ")}
+    
+    Crie um parecer técnico com pontos fortes, desafios e sugestões de intervenção.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -185,8 +198,8 @@ export const generatePedagogicalSummary = async (
       contents: [{ parts: [{ text: prompt }] }],
       config: { systemInstruction }
     });
-    return response.text || "Erro ao gerar relatório.";
+    return response.text || "Não foi possível gerar o resumo pedagógico.";
   } catch (error: any) {
-    return "Falha na síntese: " + error.message;
+    return "Falha na síntese de dados: " + error.message;
   }
 };

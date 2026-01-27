@@ -8,8 +8,9 @@ export default defineConfig(() => {
     plugins: [react()],
     base: './',
     define: {
-      // Injeta a chave de API fornecida pelo usuário para uso via process.env.API_KEY
-      'process.env.API_KEY': JSON.stringify('AIzaSyDyl-glllc5TSUgNWSCnPUaxO5itH9pi18')
+      // Consome a API_KEY das variáveis de ambiente do sistema (ex: Vercel) 
+      // e a disponibiliza para o código frontend como process.env.API_KEY
+      'process.env.API_KEY': JSON.stringify(process.env.API_KEY)
     }
   };
 });
