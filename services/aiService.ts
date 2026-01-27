@@ -38,12 +38,12 @@ export interface GeneratedEvaluation {
 }
 
 /**
- * Inicializa a IA usando a chave de ambiente protegida.
+ * Inicializa a IA usando a chave de ambiente protegida injetada pelo Vite/Vercel.
  */
 const getAIClient = () => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY não encontrada no ambiente. Verifique as configurações do Vercel.");
+  if (!apiKey || apiKey === "undefined") {
+    throw new Error("Configuração de IA pendente: API_KEY não encontrada no ambiente.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -92,12 +92,12 @@ export const generateBimonthlyEvaluation = async (
     required: ["subject", "grade", "bimester", "questions"]
   };
 
-  const systemInstruction = "Você é um professor especialista em avaliações do ENEM. Gere questões de múltipla escolha com alta qualidade pedagógica e textos motivadores profundos.";
+  const systemInstruction = "Você é um professor especialista em avaliações do ENEM. Gere questões de múltipla escolha com alta qualidade pedagógica.";
 
   const prompt = `Gere uma prova de ${subjectName} para a ${grade}ª Série, ${bimester}º Bimestre.
     Temas: ${topics.join(", ")}.
     Crie 5 questões originais com fragmentos de autores ou fatos históricos.
-    Retorne os dados estritamente no formato JSON definido no schema.`;
+    Retorne apenas JSON.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -111,11 +111,11 @@ export const generateBimonthlyEvaluation = async (
       },
     });
 
-    if (!response.text) throw new Error("A IA retornou uma resposta vazia.");
+    if (!response.text) throw new Error("Resposta vazia da IA.");
     return JSON.parse(response.text.trim()) as GeneratedEvaluation;
   } catch (error: any) {
-    console.error("Erro na geração da avaliação:", error);
-    throw new Error("Falha na IA: A chave de API pode estar incorreta ou sem créditos.");
+    console.error("Erro IA:", error);
+    throw new Error("Falha na geração: verifique se a API_KEY no Vercel é válida e possui faturamento ativo.");
   }
 };
 
@@ -147,10 +147,8 @@ export const evaluateActivities = async (
     required: ["generalComment", "corrections"]
   };
 
-  const systemInstruction = `Você é um professor avaliador da disciplina que engloba o tema: ${lessonTitle}. Forneça correções pedagógicas, críticas e encorajadoras.`;
-  const prompt = `Teoria de base: ${theoryContext.substring(0, 1500)}. 
-    Analise as seguintes respostas dos alunos e atribua notas de 0 a 10: 
-    ${JSON.stringify(questionsAndAnswers)}`;
+  const systemInstruction = `Você é um professor avaliador de ${lessonTitle}. Dê feedbacks encorajadores.`;
+  const prompt = `Teoria: ${theoryContext.substring(0, 1000)}. Respostas: ${JSON.stringify(questionsAndAnswers)}`;
 
   try {
     const response = await ai.models.generateContent({
@@ -179,18 +177,8 @@ export const generatePedagogicalSummary = async (
   }
 ): Promise<string> => {
   const ai = getAIClient();
-  
-  const systemInstruction = "Você é um Coordenador Pedagógico experiente. Sua tarefa é criar um relatório formal e analítico em Markdown sobre o desempenho escolar.";
-  
-  const prompt = `Analise os seguintes dados pedagógicos:
-    Contexto: ${context}
-    Disciplina: ${data.subject}
-    Turma: ${data.schoolClass}
-    ${data.studentName ? `Aluno: ${data.studentName}` : ''}
-    Notas das Atividades: [${data.grades.join(", ")}]
-    Observações do Professor: ${data.notes.join(" | ")}
-    
-    Crie um parecer técnico com pontos fortes, desafios e sugestões de intervenção.`;
+  const systemInstruction = "Você é um Coordenador Pedagógico sênior.";
+  const prompt = `Analise o desempenho em ${data.subject}. Contexto: ${context}. Dados: ${JSON.stringify(data)}`;
 
   try {
     const response = await ai.models.generateContent({
@@ -198,8 +186,8 @@ export const generatePedagogicalSummary = async (
       contents: [{ parts: [{ text: prompt }] }],
       config: { systemInstruction }
     });
-    return response.text || "Não foi possível gerar o resumo pedagógico.";
+    return response.text || "Erro ao gerar relatório.";
   } catch (error: any) {
-    return "Falha na síntese de dados: " + error.message;
+    return "Falha na síntese: " + error.message;
   }
 };
