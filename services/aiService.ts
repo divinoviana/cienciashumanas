@@ -38,16 +38,33 @@ export interface GeneratedEvaluation {
 }
 
 /**
- * Cria uma instância do cliente de IA garantindo que a chave esteja presente.
+ * Função utilitária para pausar a execução (usada no Retry)
  */
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Wrapper para chamadas da IA com tentativa de reenvio automático em caso de erro 429.
+ */
+const callAIWithRetry = async (fn: () => Promise<any>, retries = 3, delay = 2000): Promise<any> => {
+  try {
+    return await fn();
+  } catch (error: any) {
+    const isQuotaError = error.message?.includes("429") || error.message?.includes("RESOURCE_EXHAUSTED");
+    
+    if (isQuotaError && retries > 0) {
+      console.warn(`Limite de cota atingido. Tentando novamente em ${delay/1000}s... (${retries} tentativas restantes)`);
+      await sleep(delay);
+      return callAIWithRetry(fn, retries - 1, delay * 2); // Dobra o tempo de espera a cada falha
+    }
+    throw error;
+  }
+};
+
 const getAIClient = () => {
   const apiKey = process.env.API_KEY;
-  
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    console.error("Erro: A chave API_KEY não foi encontrada no ambiente.");
-    throw new Error("O serviço de inteligência artificial não foi configurado corretamente (Chave ausente).");
+    throw new Error("Erro de Configuração: API_KEY não detectada. Verifique o Vercel.");
   }
-  
   return new GoogleGenAI({ apiKey });
 };
 
@@ -57,9 +74,8 @@ export const generateBimonthlyEvaluation = async (
   bimester: string,
   topics: string[]
 ): Promise<GeneratedEvaluation> => {
-  try {
+  return callAIWithRetry(async () => {
     const ai = getAIClient();
-
     const schema = {
       type: Type.OBJECT,
       properties: {
@@ -77,10 +93,8 @@ export const generateBimonthlyEvaluation = async (
               options: {
                 type: Type.OBJECT,
                 properties: {
-                  a: { type: Type.STRING },
-                  b: { type: Type.STRING },
-                  c: { type: Type.STRING },
-                  d: { type: Type.STRING },
+                  a: { type: Type.STRING }, b: { type: Type.STRING },
+                  c: { type: Type.STRING }, d: { type: Type.STRING },
                   e: { type: Type.STRING }
                 },
                 required: ["a", "b", "c", "d", "e"]
@@ -96,25 +110,21 @@ export const generateBimonthlyEvaluation = async (
       required: ["subject", "grade", "bimester", "questions"]
     };
 
-    const prompt = `Gere uma avaliação de ${subjectName} para a ${grade}ª Série, ${bimester}º Bimestre. 
-    Conteúdos: ${topics.join(", ")}. Estilo ENEM (questões contextuais com alternativas A a E).`;
+    const prompt = `Gere avaliação de ${subjectName}, ${grade}ª Série, ${bimester}º Bimestre. Temas: ${topics.slice(0,3).join(", ")}.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Você é um professor avaliador experiente de Ciências Humanas.",
+        systemInstruction: "Professor avaliador. Gere 5 questões ENEM.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
     });
 
-    if (!response.text) throw new Error("A IA não retornou o conteúdo esperado.");
+    if (!response.text) throw new Error("IA retornou vazio.");
     return JSON.parse(response.text.trim()) as GeneratedEvaluation;
-  } catch (error: any) {
-    console.error("Erro na geração da prova:", error);
-    throw new Error("Falha ao gerar avaliação: " + error.message);
-  }
+  });
 };
 
 export const evaluateActivities = async (
@@ -122,9 +132,8 @@ export const evaluateActivities = async (
   theoryContext: string,
   questionsAndAnswers: { question: string; answer: string }[]
 ): Promise<AIResponse> => {
-  try {
+  return callAIWithRetry(async () => {
     const ai = getAIClient();
-
     const schema = {
       type: Type.OBJECT,
       properties: {
@@ -147,26 +156,21 @@ export const evaluateActivities = async (
       required: ["generalComment", "corrections"]
     };
 
-    const prompt = `Corrija as respostas do aluno baseando-se nesta teoria: ${theoryContext.substring(0, 1500)}. 
-    Aula: ${lessonTitle}. 
-    Respostas: ${JSON.stringify(questionsAndAnswers)}`;
+    const prompt = `Corrija: Aula ${lessonTitle}. Respostas: ${JSON.stringify(questionsAndAnswers)}`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Você é um professor tutor. Corrija com rigor acadêmico mas de forma incentivadora.",
+        systemInstruction: "Tutor acadêmico. Avalie brevemente as respostas.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
     });
     
-    if (!response.text) throw new Error("Sem resposta da IA.");
+    if (!response.text) throw new Error("Sem resposta.");
     return JSON.parse(response.text) as AIResponse;
-  } catch (error: any) {
-    console.error("Erro na correção:", error);
-    throw new Error("Erro na análise da IA: " + error.message);
-  }
+  });
 };
 
 export const generatePedagogicalSummary = async (
@@ -179,22 +183,18 @@ export const generatePedagogicalSummary = async (
     schoolClass: string
   }
 ): Promise<string> => {
-  try {
+  return callAIWithRetry(async () => {
     const ai = getAIClient();
-    const prompt = `Gere um relatório pedagógico analítico em Markdown para o contexto ${context}. 
-    Disciplina: ${data.subject}. 
-    Dados do desempenho: ${JSON.stringify(data)}`;
+    const prompt = `Relatório ${context} - ${data.subject}. Dados: ${JSON.stringify(data)}`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Você é um Coordenador Pedagógico. Escreva relatórios formais e construtivos."
+        systemInstruction: "Coordenador Pedagógico. Gere um resumo Markdown."
       }
     });
     
-    return response.text || "Relatório não gerado.";
-  } catch (error: any) {
-    return "Falha na síntese dos dados pedagógicos: " + error.message;
-  }
+    return response.text || "Erro ao gerar.";
+  });
 };
