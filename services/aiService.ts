@@ -38,19 +38,17 @@ export interface GeneratedEvaluation {
 }
 
 /**
- * Inicializa a IA usando a variável injetada pelo Vite a partir do Vercel.
+ * Cria uma instância do cliente de IA garantindo que a chave esteja presente.
  */
 const getAIClient = () => {
-  // Fix: Access process.env.API_KEY directly for checking availability
   const apiKey = process.env.API_KEY;
   
-  // Verificação de segurança para o desenvolvedor
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("Erro de Configuração: A chave 'API_KEY' não foi encontrada nas variáveis de ambiente do Vercel.");
+    console.error("Erro: A chave API_KEY não foi encontrada no ambiente.");
+    throw new Error("O serviço de inteligência artificial não foi configurado corretamente (Chave ausente).");
   }
   
-  // Fix: Always use process.env.API_KEY directly in initialization as per guidelines
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  return new GoogleGenAI({ apiKey });
 };
 
 export const generateBimonthlyEvaluation = async (
@@ -99,25 +97,23 @@ export const generateBimonthlyEvaluation = async (
     };
 
     const prompt = `Gere uma avaliação de ${subjectName} para a ${grade}ª Série, ${bimester}º Bimestre. 
-    Conteúdos: ${topics.join(", ")}. Estilo ENEM (A-E). Retorne apenas JSON.`;
+    Conteúdos: ${topics.join(", ")}. Estilo ENEM (questões contextuais com alternativas A a E).`;
 
-    // Fix: Simplify contents format to a direct string as per GenAI SDK guidelines
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Você é um professor avaliador experiente.",
+        systemInstruction: "Você é um professor avaliador experiente de Ciências Humanas.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
     });
 
-    // Fix: Use the .text property directly (not a method) on GenerateContentResponse
-    if (!response.text) throw new Error("A IA não retornou conteúdo.");
+    if (!response.text) throw new Error("A IA não retornou o conteúdo esperado.");
     return JSON.parse(response.text.trim()) as GeneratedEvaluation;
   } catch (error: any) {
-    console.error("Erro na IA:", error);
-    throw new Error("Falha na comunicação com o serviço de inteligência artificial.");
+    console.error("Erro na geração da prova:", error);
+    throw new Error("Falha ao gerar avaliação: " + error.message);
   }
 };
 
@@ -143,29 +139,33 @@ export const evaluateActivities = async (
               isCorrect: { type: Type.BOOLEAN },
               score: { type: Type.NUMBER },
               feedback: { type: Type.STRING }
-            }
+            },
+            required: ["question", "studentAnswer", "isCorrect", "score", "feedback"]
           }
         }
       },
       required: ["generalComment", "corrections"]
     };
 
-    const prompt = `Analise as respostas com base na teoria: ${theoryContext.substring(0, 1000)}. Aula: ${lessonTitle}. Respostas: ${JSON.stringify(questionsAndAnswers)}`;
+    const prompt = `Corrija as respostas do aluno baseando-se nesta teoria: ${theoryContext.substring(0, 1500)}. 
+    Aula: ${lessonTitle}. 
+    Respostas: ${JSON.stringify(questionsAndAnswers)}`;
 
-    // Fix: Simplify contents format to a direct string as per GenAI SDK guidelines
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Você é um tutor acadêmico. Forneça feedbacks construtivos.",
+        systemInstruction: "Você é um professor tutor. Corrija com rigor acadêmico mas de forma incentivadora.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
     });
-    // Fix: Use the .text property directly (not a method) on GenerateContentResponse
-    return JSON.parse(response.text || "{}") as AIResponse;
+    
+    if (!response.text) throw new Error("Sem resposta da IA.");
+    return JSON.parse(response.text) as AIResponse;
   } catch (error: any) {
-    throw new Error("Erro na análise automática: " + error.message);
+    console.error("Erro na correção:", error);
+    throw new Error("Erro na análise da IA: " + error.message);
   }
 };
 
@@ -181,19 +181,20 @@ export const generatePedagogicalSummary = async (
 ): Promise<string> => {
   try {
     const ai = getAIClient();
-    const prompt = `Gere um relatório pedagógico em Markdown para ${context}. Matéria: ${data.subject}. Dados: ${JSON.stringify(data)}`;
+    const prompt = `Gere um relatório pedagógico analítico em Markdown para o contexto ${context}. 
+    Disciplina: ${data.subject}. 
+    Dados do desempenho: ${JSON.stringify(data)}`;
 
-    // Fix: Simplify contents format to a direct string as per GenAI SDK guidelines
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Você é um Coordenador Pedagógico sênior."
+        systemInstruction: "Você é um Coordenador Pedagógico. Escreva relatórios formais e construtivos."
       }
     });
-    // Fix: Use the .text property directly (not a method) on GenerateContentResponse
-    return response.text || "Erro ao gerar resumo.";
+    
+    return response.text || "Relatório não gerado.";
   } catch (error: any) {
-    return "Falha na síntese de dados: " + error.message;
+    return "Falha na síntese dos dados pedagógicos: " + error.message;
   }
 };
