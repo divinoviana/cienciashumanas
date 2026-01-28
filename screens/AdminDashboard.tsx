@@ -752,9 +752,9 @@ export const AdminDashboard: React.FC = () => {
                                 <h4 className="font-black text-tocantins-blue text-xs uppercase mb-4">{b.title}</h4>
                                 <div className="space-y-2">
                                    {b.lessons.filter(l => isSuper || l.subject === teacherSubject).map(l => (
-                                      <div key={l.id} className="text-[10px] font-bold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center gap-2">
-                                         <div className="w-1.5 h-1.5 rounded-full bg-tocantins-blue"></div>
-                                         <span className="truncate">{l.title}</span>
+                                      <div key={l.id} className="text-[10px] font-bold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-start gap-2">
+                                         <div className="w-1.5 h-1.5 rounded-full bg-tocantins-blue mt-1.5 shrink-0"></div>
+                                         <span className="whitespace-normal break-words leading-tight">{l.title}</span>
                                       </div>
                                    ))}
                                 </div>
