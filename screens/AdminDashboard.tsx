@@ -12,7 +12,7 @@ import {
   RefreshCw, Home, ShieldCheck, Trash2, Settings,
   Search, Award, StickyNote, Clock, Send, UserCircle, BrainCircuit, Sparkles, FileText, CheckCircle2,
   Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2,
-  Library, ListChecks, Reply, Key, UserMinus, AlertTriangle, Camera, Upload, Eye, MessageSquareQuote, UserPlus
+  Library, ListChecks, Reply, Key, UserMinus, AlertTriangle, Camera, Upload, Eye, MessageSquareQuote, UserPlus, Pencil
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -47,6 +47,10 @@ export const AdminDashboard: React.FC = () => {
   const [studentNote, setStudentNote] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [studentNotesHistory, setStudentNotesHistory] = useState<any[]>([]);
+  
+  // Edição de Notas
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteContent, setEditingNoteContent] = useState('');
 
   // Criação de Estudante (Super Admin)
   const [isCreatingStudent, setIsCreatingStudent] = useState(false);
@@ -222,6 +226,38 @@ export const AdminDashboard: React.FC = () => {
         alert("Erro ao salvar nota: " + e.message);
     } finally {
         setIsSavingNote(false);
+    }
+  };
+
+  const handleUpdateNote = async () => {
+    if (!editingNoteId || !editingNoteContent.trim() || !selectedStudent) return;
+    try {
+      const { error } = await supabase
+        .from('student_notes')
+        .update({ content: editingNoteContent.trim() })
+        .eq('id', editingNoteId);
+      
+      if (error) throw error;
+      setEditingNoteId(null);
+      setEditingNoteContent('');
+      fetchStudentNotes(selectedStudent.id);
+    } catch (e: any) {
+      alert("Erro ao atualizar anotação: " + e.message);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!confirm("Deseja realmente excluir esta anotação?")) return;
+    try {
+      const { error } = await supabase
+        .from('student_notes')
+        .delete()
+        .eq('id', noteId);
+      
+      if (error) throw error;
+      if (selectedStudent) fetchStudentNotes(selectedStudent.id);
+    } catch (e: any) {
+      alert("Erro ao excluir anotação: " + e.message);
     }
   };
 
@@ -608,7 +644,28 @@ export const AdminDashboard: React.FC = () => {
                             <button onClick={handleSaveNote} disabled={isSavingNote || !studentNote.trim()} className="bg-slate-900 text-white px-6 rounded-2xl font-black text-[10px] uppercase"> {isSavingNote ? <Loader2 className="animate-spin"/> : <Save size={18}/>} Salvar </button>
                         </div>
                         <div className="space-y-3 mt-6">
-                            {studentNotesHistory.map((n: any) => ( <div key={n.id} className="bg-amber-50 p-4 rounded-2xl border border-amber-100 relative"> <p className="text-sm text-slate-700 italic">"{n.content}"</p> <p className="text-[8px] font-black text-amber-600 uppercase mt-2">{new Date(n.created_at).toLocaleString()}</p> </div> ))}
+                            {studentNotesHistory.map((n: any) => ( 
+                                <div key={n.id} className="bg-amber-50 p-4 rounded-2xl border border-amber-100 relative group/note"> 
+                                    {editingNoteId === n.id ? (
+                                        <div className="space-y-2">
+                                            <textarea value={editingNoteContent} onChange={e => setEditingNoteContent(e.target.value)} className="w-full p-3 bg-white rounded-xl border-2 border-amber-200 outline-none text-sm focus:border-tocantins-blue" />
+                                            <div className="flex gap-2">
+                                                <button onClick={handleUpdateNote} className="text-[10px] bg-tocantins-blue text-white px-4 py-1.5 rounded-lg font-black uppercase shadow-sm">Salvar</button>
+                                                <button onClick={() => { setEditingNoteId(null); setEditingNoteContent(''); }} className="text-[10px] bg-slate-200 text-slate-600 px-4 py-1.5 rounded-lg font-black uppercase">Cancelar</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p className="text-sm text-slate-700 italic">"{n.content}"</p> 
+                                            <p className="text-[8px] font-black text-amber-600 uppercase mt-2">{new Date(n.created_at).toLocaleString()}</p>
+                                            <div className="absolute top-2 right-2 opacity-0 group-hover/note:opacity-100 transition-opacity flex gap-1">
+                                                <button onClick={() => { setEditingNoteId(n.id); setEditingNoteContent(n.content); }} className="p-1.5 bg-white rounded-lg shadow-sm text-slate-400 hover:text-tocantins-blue transition-colors" title="Editar"><Pencil size={12}/></button>
+                                                <button onClick={() => handleDeleteNote(n.id)} className="p-1.5 bg-white rounded-lg shadow-sm text-slate-400 hover:text-red-500 transition-colors" title="Excluir"><Trash2 size={12}/></button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div> 
+                            ))}
                         </div>
                     </div>
                 </div>
