@@ -279,6 +279,23 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleDeleteSubmission = async (subId: string) => {
+    if (!confirm("Deseja realmente excluir/cancelar este envio? Isso permitirá que o estudante realize a atividade ou prova novamente.")) return;
+    try {
+      const { error } = await supabase
+        .from('submissions')
+        .delete()
+        .eq('id', subId);
+      
+      if (error) throw error;
+      
+      setSubmissions(prev => prev.filter(s => s.id !== subId));
+      alert("Envio cancelado com sucesso. O estudante já pode refazer.");
+    } catch (e: any) {
+      alert("Erro ao cancelar envio: " + e.message);
+    }
+  };
+
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSuper) return;
@@ -876,8 +893,11 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                        </div>
                        <div className="flex items-center gap-6">
-                          <div className="text-right"> <p className="text-[9px] font-black text-slate-400 uppercase">Nota IA</p> <div className="bg-slate-50 px-4 py-1.5 rounded-xl font-black text-tocantins-blue text-sm shadow-inner">{sub.score?.toFixed(1)}</div> </div>
-                          <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="bg-tocantins-blue text-white p-4 rounded-2xl shadow-lg hover:shadow-blue-200 hover:-translate-y-1 transition-all flex items-center gap-2 text-xs font-black uppercase"> <Eye size={18}/> Ver e Avaliar </button>
+                          <div className="text-right mr-4"> <p className="text-[9px] font-black text-slate-400 uppercase">Nota IA</p> <div className="bg-slate-50 px-4 py-1.5 rounded-xl font-black text-tocantins-blue text-sm shadow-inner">{sub.score?.toFixed(1)}</div> </div>
+                          <div className="flex gap-2">
+                             <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="bg-tocantins-blue text-white p-4 rounded-2xl shadow-lg hover:shadow-blue-200 hover:-translate-y-1 transition-all flex items-center gap-2 text-xs font-black uppercase"> <Eye size={18}/> Ver e Avaliar </button>
+                             <button onClick={() => handleDeleteSubmission(sub.id)} className="bg-slate-100 text-slate-400 p-4 rounded-2xl hover:bg-red-600 hover:text-white transition-all shadow-sm"> <Trash2 size={18}/> </button>
+                          </div>
                        </div>
                     </div>
                   ))
@@ -1052,7 +1072,12 @@ export const AdminDashboard: React.FC = () => {
                                    <td className="p-6"> <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase">{sub.lesson_title}</span> </td>
                                    <td className="p-6 text-xs font-bold text-slate-500 uppercase">{sub.school_class}</td>
                                    <td className="p-6"> <div className="w-10 h-10 rounded-xl bg-tocantins-blue text-white flex items-center justify-center font-black mx-auto shadow-lg shadow-blue-100">{sub.score?.toFixed(1)}</div> </td>
-                                   <td className="p-6 text-right"> <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="p-3 bg-slate-100 text-slate-500 hover:bg-tocantins-blue hover:text-white rounded-xl transition-all"> <Eye size={18}/> </button> </td>
+                                   <td className="p-6 text-right"> 
+                                      <div className="flex justify-end gap-2">
+                                        <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="p-3 bg-slate-100 text-slate-500 hover:bg-tocantins-blue hover:text-white rounded-xl transition-all" title="Ver Detalhes"> <Eye size={18}/> </button> 
+                                        <button onClick={() => handleDeleteSubmission(sub.id)} className="p-3 bg-slate-100 text-slate-500 hover:bg-red-600 hover:text-white rounded-xl transition-all" title="Cancelar Envio"> <Trash2 size={18}/> </button>
+                                      </div>
+                                   </td>
                                 </tr>
                              ))
                           }
