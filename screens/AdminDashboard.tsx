@@ -5,14 +5,14 @@ import { subjectsInfo, ADMIN_PASSWORDS, curriculumData } from '../data';
 import { Subject } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { generateBimonthlyEvaluation, GeneratedEvaluation, generatePedagogicalSummary } from '../services/aiService';
+import { generateBimonthlyEvaluation, GeneratedEvaluation, generatePedagogicalSummary, generateLessonPlan, LessonPlan } from '../services/aiService';
 import { 
   Users, BookOpen, User, 
   MessageSquare, Loader2, X, Save, 
   RefreshCw, Home, ShieldCheck, Trash2, Settings,
   Search, Award, StickyNote, Clock, Send, UserCircle, BrainCircuit, Sparkles, FileText, CheckCircle2,
   Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2,
-  Library, ListChecks, Reply, Key, UserMinus, AlertTriangle, Camera, Upload, Eye, MessageSquareQuote, UserPlus, Pencil
+  Library, ListChecks, Reply, Key, UserMinus, AlertTriangle, Camera, Upload, Eye, MessageSquareQuote, UserPlus, Pencil, Layers
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -41,6 +41,10 @@ export const AdminDashboard: React.FC = () => {
   const [viewingSubmission, setViewingSubmission] = useState<any | null>(null);
   const [manualFeedback, setManualFeedback] = useState('');
   const [isSavingManualFeedback, setIsSavingManualFeedback] = useState(false);
+
+  // Aula Pronta IA
+  const [viewingLessonPlan, setViewingLessonPlan] = useState<LessonPlan | null>(null);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
   // Carômetro e Notas
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
@@ -107,6 +111,20 @@ export const AdminDashboard: React.FC = () => {
         } else {
           alert("Senha incorreta.");
         }
+    }
+  };
+
+  const handleViewLessonPlan = async (lesson: any, gradeId: number) => {
+    if (isGeneratingPlan) return;
+    setIsGeneratingPlan(true);
+    try {
+      const subjectName = subjectsInfo[lesson.subject as Subject]?.name || "Ciências Humanas";
+      const plan = await generateLessonPlan(subjectName, lesson.title, gradeId.toString());
+      setViewingLessonPlan(plan);
+    } catch (e: any) {
+      alert("Erro ao gerar roteiro: " + e.message);
+    } finally {
+      setIsGeneratingPlan(false);
     }
   };
 
@@ -530,6 +548,78 @@ export const AdminDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans overflow-hidden">
       
+      {/* MODAL PLANO DE AULA GERADO (IA) */}
+      {viewingLessonPlan && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-5xl rounded-[50px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-8 border-slate-50">
+                <div className="p-8 border-b flex justify-between items-center bg-white sticky top-0 z-10">
+                    <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-amber-500 rounded-3xl flex items-center justify-center text-white shadow-xl">
+                            <Sparkles size={28}/>
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter leading-tight">{viewingLessonPlan.title}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Roteiro Pedagógico Sugerido (50 Minutos)</p>
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => window.print()} className="p-4 bg-slate-100 text-slate-500 hover:bg-tocantins-blue hover:text-white rounded-2xl transition-all shadow-sm"> <Printer size={24}/> </button>
+                        <button onClick={() => setViewingLessonPlan(null)} className="p-4 bg-slate-100 text-slate-500 hover:bg-red-500 hover:text-white rounded-2xl transition-all shadow-sm"> <X size={24}/> </button>
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-10 space-y-12 bg-white print:p-0">
+                    <section className="space-y-4">
+                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 uppercase tracking-widest"> <Layers size={16}/> Objetivos de Aprendizagem</h4>
+                        <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {viewingLessonPlan.objectives.map((obj, i) => (
+                                <li key={i} className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-700 border border-slate-100 flex gap-3">
+                                    <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-[10px] text-amber-500 shadow-sm shrink-0">{i+1}</span>
+                                    {obj}
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+
+                    <section className="space-y-6">
+                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 uppercase tracking-widest"> <BookOpen size={16}/> Conteúdo Teórico Aprofundado</h4>
+                        <div className="prose prose-slate max-w-none bg-amber-50/30 p-10 rounded-[40px] border border-amber-100/50 text-slate-700 leading-relaxed text-lg italic font-serif">
+                            {viewingLessonPlan.theory}
+                        </div>
+                    </section>
+
+                    <section className="space-y-6">
+                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 uppercase tracking-widest"> <Clock size={16}/> Metodologia e Divisão do Tempo</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                                <div className="text-[10px] font-black text-tocantins-blue uppercase mb-2">Introdução (10 min)</div>
+                                <p className="text-sm font-medium text-slate-600">{viewingLessonPlan.methodology.introduction}</p>
+                            </div>
+                            <div className="p-6 bg-blue-50 rounded-3xl border border-blue-100">
+                                <div className="text-[10px] font-black text-tocantins-blue uppercase mb-2">Desenvolvimento (30 min)</div>
+                                <p className="text-sm font-medium text-slate-600">{viewingLessonPlan.methodology.development}</p>
+                            </div>
+                            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                                <div className="text-[10px] font-black text-tocantins-blue uppercase mb-2">Fechamento (10 min)</div>
+                                <p className="text-sm font-medium text-slate-600">{viewingLessonPlan.methodology.conclusion}</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="space-y-4">
+                        <h4 className="flex items-center gap-2 text-xs font-black text-amber-600 uppercase tracking-widest"> <Wand2 size={16}/> Sugestão de Atividade Prática</h4>
+                        <div className="bg-slate-900 text-white p-10 rounded-[40px] shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-8 opacity-10"> <Sparkles size={80}/> </div>
+                            <p className="text-lg font-bold leading-relaxed relative z-10">{viewingLessonPlan.suggestedActivity}</p>
+                        </div>
+                    </section>
+                </div>
+                <div className="p-6 border-t bg-slate-50 text-center">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Este roteiro foi gerado por IA para apoio docente • Customize conforme sua realidade local.</p>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* MODAL CRIAR ESTUDANTE (SUPER ADMIN) */}
       {isCreatingStudent && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
@@ -870,14 +960,21 @@ export const AdminDashboard: React.FC = () => {
                        <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm ml-4">{grade.title} - {grade.description}</h3>
                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                           {grade.bimesters.map(b => (
-                             <div key={b.id} className="bg-white p-5 rounded-[32px] border shadow-sm">
+                             <div key={b.id} className="bg-white p-5 rounded-[32px] border shadow-sm flex flex-col">
                                 <h4 className="font-black text-tocantins-blue text-xs uppercase mb-4">{b.title}</h4>
-                                <div className="space-y-2">
+                                <div className="space-y-2 flex-1">
                                    {b.lessons.filter(l => isSuper || l.subject === teacherSubject).map(l => (
-                                      <div key={l.id} className="text-[10px] font-bold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-start gap-2">
-                                         <div className="w-1.5 h-1.5 rounded-full bg-tocantins-blue mt-1.5 shrink-0"></div>
-                                         <span className="whitespace-normal break-words leading-tight">{l.title}</span>
-                                      </div>
+                                      <button 
+                                        key={l.id} 
+                                        onClick={() => handleViewLessonPlan(l, grade.id)}
+                                        disabled={isGeneratingPlan}
+                                        className="w-full text-left group transition-all"
+                                      >
+                                        <div className="text-[10px] font-bold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-start gap-2 group-hover:bg-amber-50 group-hover:border-amber-200 group-hover:-translate-y-0.5 transition-all">
+                                           <div className="w-1.5 h-1.5 rounded-full bg-tocantins-blue mt-1.5 shrink-0 group-hover:bg-amber-500"></div>
+                                           <span className="whitespace-normal break-words leading-tight group-hover:text-amber-900">{l.title}</span>
+                                        </div>
+                                      </button>
                                    ))}
                                 </div>
                              </div>
@@ -967,6 +1064,22 @@ export const AdminDashboard: React.FC = () => {
 
         </div>
       </main>
+
+      {/* OVERLAY DE CARREGAMENTO DA IA */}
+      {isGeneratingPlan && (
+        <div className="fixed inset-0 z-[300] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-[40px] shadow-2xl flex flex-col items-center gap-4 animate-in zoom-in-95">
+                <div className="w-16 h-16 bg-amber-500 rounded-3xl flex items-center justify-center text-white animate-bounce shadow-xl">
+                    <Sparkles size={32}/>
+                </div>
+                <div className="text-center">
+                    <h3 className="font-black text-slate-800 uppercase tracking-tighter">Preparando Aula Pronta</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">A IA está escrevendo o roteiro de 50 min...</p>
+                </div>
+                <Loader2 className="animate-spin text-amber-500" size={24}/>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

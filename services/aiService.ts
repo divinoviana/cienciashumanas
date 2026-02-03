@@ -37,6 +37,18 @@ export interface GeneratedEvaluation {
   questions: EvaluationQuestion[];
 }
 
+export interface LessonPlan {
+  title: string;
+  objectives: string[];
+  theory: string;
+  methodology: {
+    introduction: string; // 10 min
+    development: string; // 30 min
+    conclusion: string; // 10 min
+  };
+  suggestedActivity: string;
+}
+
 /**
  * Função utilitária para pausar a execução (usada no Retry)
  */
@@ -66,6 +78,52 @@ const getAIClient = () => {
     throw new Error("Erro de Configuração: API_KEY não detectada. Verifique o Vercel.");
   }
   return new GoogleGenAI({ apiKey });
+};
+
+export const generateLessonPlan = async (subject: string, theme: string, grade: string): Promise<LessonPlan> => {
+  return callAIWithRetry(async () => {
+    const ai = getAIClient();
+    const schema = {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING },
+        objectives: { type: Type.ARRAY, items: { type: Type.STRING } },
+        theory: { type: Type.STRING },
+        methodology: {
+          type: Type.OBJECT,
+          properties: {
+            introduction: { type: Type.STRING },
+            development: { type: Type.STRING },
+            conclusion: { type: Type.STRING }
+          },
+          required: ["introduction", "development", "conclusion"]
+        },
+        suggestedActivity: { type: Type.STRING }
+      },
+      required: ["title", "objectives", "theory", "methodology", "suggestedActivity"]
+    };
+
+    const prompt = `Você é um professor mentor de alto nível. Gere um plano de aula de 50 minutos para a disciplina de ${subject}, destinada à ${grade}ª série do Ensino Médio. 
+    O tema é: "${theme}". 
+    O plano deve ser criativo, dialogar com a realidade juvenil brasileira e incluir:
+    1. Objetivos claros.
+    2. Texto teórico denso mas acessível para o professor ler ou distribuir.
+    3. Metodologia dividida em Introdução (10 min), Desenvolvimento (30 min) e Fechamento (10 min).
+    4. Uma sugestão de atividade prática engajadora.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        systemInstruction: "Especialista em didática para o Ensino Médio. Linguagem clara e acadêmica.",
+        responseMimeType: "application/json",
+        responseSchema: schema,
+      },
+    });
+
+    if (!response.text) throw new Error("IA retornou vazio.");
+    return JSON.parse(response.text.trim()) as LessonPlan;
+  });
 };
 
 export const generateBimonthlyEvaluation = async (
