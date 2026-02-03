@@ -4,8 +4,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { curriculumData } from '../data';
 import { ActivityInput } from '../components/ActivityInput';
 import { SubmissionBar, SubmissionItem } from '../components/SubmissionBar';
-import { ArrowLeft, BookOpen, PenTool, Sparkles, Home } from 'lucide-react';
-import { evaluateActivities, AIResponse } from '../services/aiService';
+import { ArrowLeft, BookOpen, PenTool, Sparkles, Home, Loader2, ListChecks, HelpCircle } from 'lucide-react';
+import { evaluateActivities, AIResponse, generateLessonActivity, LessonActivity } from '../services/aiService';
 import { AIFeedbackModal } from '../components/AIFeedbackModal';
 import { useAuth } from '../context/AuthContext';
 
@@ -14,7 +14,10 @@ export const LessonView: React.FC = () => {
   const navigate = useNavigate();
   const { student, isLoading } = useAuth();
 
+  const [lessonActivity, setLessonActivity] = useState<LessonActivity | null>(null);
+  const [isActivityLoading, setIsActivityLoading] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiData, setAiData] = useState<AIResponse | null>(null);
@@ -29,6 +32,24 @@ export const LessonView: React.FC = () => {
     setAnswers({});
     setAiData(null);
     setIsAIModalOpen(false);
+    setLessonActivity(null);
+  }, [lessonId]);
+
+  // Busca a lição e gera atividade via IA
+  useEffect(() => {
+    const fetchActivity = async () => {
+      if (!foundLesson) return;
+      setIsActivityLoading(true);
+      try {
+        const activity = await generateLessonActivity(foundLesson.title, foundLesson.theory);
+        setLessonActivity(activity);
+      } catch (e) {
+        console.error("Erro ao gerar atividade:", e);
+      } finally {
+        setIsActivityLoading(false);
+      }
+    };
+    if (lessonId) fetchActivity();
   }, [lessonId]);
 
   const getTodayString = () => {
@@ -60,22 +81,40 @@ export const LessonView: React.FC = () => {
 
   if (!foundLesson) return <div className="p-8 text-center">Aula não encontrada.</div>;
 
-  const handleAnswerChange = (key: string, value: string) => {
-    setAnswers(prev => ({ ...prev, [key]: value }));
+  const handleOptionSelect = (questionId: string, option: string) => {
+    setAnswers(prev => ({ ...prev, [`obj-${questionId}`]: option }));
+  };
+
+  const handleDiscursiveChange = (questionId: string, value: string) => {
+    setAnswers(prev => ({ ...prev, [`disc-${questionId}`]: value }));
   };
 
   const getSubmissionData = (): SubmissionItem[] => {
-    if (!foundLesson) return [];
+    if (!lessonActivity) return [];
     const data: SubmissionItem[] = [];
-    foundLesson.activities.forEach(activity => {
-      activity.questions?.forEach((q, idx) => {
-        const key = `${activity.id}-${idx}`;
-        const answer = answers[key];
-        if (answer && answer.trim()) {
-          data.push({ activityTitle: activity.title, question: q, answer: answer });
-        }
-      });
+
+    lessonActivity.objectives.forEach(q => {
+      const ans = answers[`obj-${q.id}`];
+      if (ans) {
+        data.push({ 
+          activityTitle: "Questões Objetivas", 
+          question: q.question, 
+          answer: `Opção ${ans.toUpperCase()}: ${q.options[ans as keyof typeof q.options]}` 
+        });
+      }
     });
+
+    lessonActivity.discursives.forEach(q => {
+      const ans = answers[`disc-${q.id}`];
+      if (ans && ans.trim()) {
+        data.push({ 
+          activityTitle: "Questão Discursiva", 
+          question: q.question, 
+          answer: ans 
+        });
+      }
+    });
+
     return data;
   };
 
@@ -108,7 +147,7 @@ export const LessonView: React.FC = () => {
               <Link to="/" className="inline-flex items-center text-white/90 bg-black/30 hover:bg-black/50 px-4 py-2 rounded-full backdrop-blur-md transition-colors border border-white/10 text-sm font-bold">
                 <Home className="w-4 h-4 mr-2" /> Início
               </Link>
-              <Link to={`/grade/${parentGradeId}`} className="inline-flex items-center text-white/90 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full backdrop-blur-md transition-colors border border-white/10 text-sm font-bold">
+              <Link to={`/grade/${parentGradeId}?subject=${foundLesson.subject}`} className="inline-flex items-center text-white/90 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full backdrop-blur-md transition-colors border border-white/10 text-sm font-bold">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Grade
               </Link>
            </div>
@@ -124,6 +163,8 @@ export const LessonView: React.FC = () => {
 
       <div className="container mx-auto px-4 max-w-4xl -mt-10 relative z-20">
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 md:p-10 mb-8">
+          
+          {/* SEÇÃO: TEORIA */}
           <div className="prose prose-slate prose-lg max-w-none mb-12">
             <h3 className="flex items-center text-2xl font-bold text-slate-800 mb-6 pb-4 border-b border-slate-100">
               <BookOpen className="w-7 h-7 mr-3 text-indigo-600" /> Teoria
@@ -133,29 +174,89 @@ export const LessonView: React.FC = () => {
             </div>
           </div>
 
+          {/* SEÇÃO: ATIVIDADES DINÂMICAS IA */}
           <div className="mb-12">
             <h3 className="flex items-center text-2xl font-bold text-slate-800 mb-8">
               <PenTool className="w-7 h-7 mr-3 text-green-600" /> Atividades
             </h3>
-            <div className="space-y-8">
-              {foundLesson.activities.map((activity) => (
-                <div key={activity.id} className="p-6 bg-slate-50/50 rounded-xl border border-slate-200">
-                  <h4 className="font-bold mb-4 text-slate-800 border-b pb-2">{activity.title}</h4>
-                  {activity.questions?.map((q, idx) => (
-                    <ActivityInput key={`${activity.id}-${idx}`} questionId={`${activity.id}-${idx}`} questionText={q} value={answers[`${activity.id}-${idx}`] || ''} onChange={(val) => handleAnswerChange(`${activity.id}-${idx}`, val)} />
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
 
-          <button 
-            type="button"
-            onClick={handleAICorrection} 
-            className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg hover:shadow-indigo-200 transition-all hover:-translate-y-1 mb-4 cursor-pointer"
-          >
-            <Sparkles size={20} /> Analisar Respostas com IA (Opcional)
-          </button>
+            {isActivityLoading ? (
+              <div className="bg-slate-50 p-20 rounded-[40px] border border-dashed border-slate-200 flex flex-col items-center justify-center gap-4 text-center">
+                 <div className="w-16 h-16 bg-white rounded-3xl shadow-xl flex items-center justify-center animate-bounce">
+                    <Sparkles className="text-tocantins-blue" size={32}/>
+                 </div>
+                 <div>
+                    <h4 className="font-black text-slate-800 uppercase tracking-tight">IA está criando sua atividade...</h4>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Gerando 5 objetivas e 2 discursivas agora</p>
+                 </div>
+                 <Loader2 className="animate-spin text-tocantins-blue" size={24}/>
+              </div>
+            ) : lessonActivity ? (
+              <div className="space-y-12">
+                
+                {/* QUESTÕES OBJETIVAS */}
+                <div className="space-y-8">
+                   <div className="flex items-center gap-2 mb-4">
+                      <ListChecks className="text-tocantins-blue" size={20}/>
+                      <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest">Parte 1: Questões Objetivas</h4>
+                   </div>
+                   {lessonActivity.objectives.map((q, idx) => (
+                     <div key={q.id} className="bg-slate-50/50 p-8 rounded-[32px] border border-slate-200 space-y-6">
+                        <div className="flex items-start gap-4">
+                           <span className="bg-slate-900 text-white w-8 h-8 rounded-lg flex items-center justify-center font-black flex-shrink-0 text-sm">{idx + 1}</span>
+                           <p className="text-lg font-bold text-slate-800 leading-tight">{q.question}</p>
+                        </div>
+                        <div className="space-y-3">
+                           {Object.entries(q.options).map(([opt, text]) => (
+                             <button 
+                               key={opt}
+                               onClick={() => handleOptionSelect(q.id, opt)}
+                               className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex items-start gap-4 ${answers[`obj-${q.id}`] === opt ? 'border-tocantins-blue bg-blue-50 shadow-md ring-2 ring-blue-100' : 'border-white bg-white hover:bg-slate-50 hover:border-slate-100'}`}
+                             >
+                                <span className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 font-black uppercase text-[10px] ${answers[`obj-${q.id}`] === opt ? 'bg-tocantins-blue text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                   {opt}
+                                </span>
+                                <span className={`text-sm font-medium ${answers[`obj-${q.id}`] === opt ? 'text-blue-900' : 'text-slate-600'}`}>
+                                   {text}
+                                </span>
+                             </button>
+                           ))}
+                        </div>
+                     </div>
+                   ))}
+                </div>
+
+                {/* QUESTÕES DISCURSIVAS */}
+                <div className="space-y-8">
+                   <div className="flex items-center gap-2 mb-4">
+                      <HelpCircle className="text-amber-500" size={20}/>
+                      <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest">Parte 2: Questões Discursivas</h4>
+                   </div>
+                   {lessonActivity.discursives.map((q, idx) => (
+                     <div key={q.id} className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
+                        <ActivityInput 
+                          questionId={q.id} 
+                          questionText={`${idx + 6}. ${q.question}`} 
+                          value={answers[`disc-${q.id}`] || ''} 
+                          onChange={(val) => handleDiscursiveChange(q.id, val)} 
+                        />
+                     </div>
+                   ))}
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={handleAICorrection} 
+                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-6 rounded-3xl flex items-center justify-center gap-3 shadow-2xl hover:shadow-indigo-200 transition-all hover:-translate-y-1 mb-4 cursor-pointer"
+                >
+                  <Sparkles size={24} /> Analisar Meu Desempenho com IA
+                </button>
+
+              </div>
+            ) : (
+              <div className="text-center py-10 text-slate-400">Clique para carregar as atividades.</div>
+            )}
+          </div>
         </div>
       </div>
 

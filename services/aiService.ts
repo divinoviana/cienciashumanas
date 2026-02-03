@@ -49,6 +49,24 @@ export interface LessonPlan {
   suggestedActivity: string;
 }
 
+// Novo: Estrutura para atividade de aula do aluno
+export interface ObjectiveQuestion {
+  id: string;
+  question: string;
+  options: { a: string; b: string; c: string; d: string; e: string; };
+  correctOption: string;
+}
+
+export interface DiscursiveQuestion {
+  id: string;
+  question: string;
+}
+
+export interface LessonActivity {
+  objectives: ObjectiveQuestion[];
+  discursives: DiscursiveQuestion[];
+}
+
 /**
  * Função utilitária para pausar a execução (usada no Retry)
  */
@@ -66,7 +84,7 @@ const callAIWithRetry = async (fn: () => Promise<any>, retries = 3, delay = 2000
     if (isQuotaError && retries > 0) {
       console.warn(`Limite de cota atingido. Tentando novamente em ${delay/1000}s... (${retries} tentativas restantes)`);
       await sleep(delay);
-      return callAIWithRetry(fn, retries - 1, delay * 2); // Dobra o tempo de espera a cada falha
+      return callAIWithRetry(fn, retries - 1, delay * 2); 
     }
     throw error;
   }
@@ -75,9 +93,72 @@ const callAIWithRetry = async (fn: () => Promise<any>, retries = 3, delay = 2000
 const getAIClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("Erro de Configuração: API_KEY não detectada. Verifique o Vercel.");
+    throw new Error("Erro de Configuração: API_KEY não detectada.");
   }
   return new GoogleGenAI({ apiKey });
+};
+
+// Nova função para gerar a atividade 5+2 para o aluno
+export const generateLessonActivity = async (lessonTitle: string, theory: string): Promise<LessonActivity> => {
+  return callAIWithRetry(async () => {
+    const ai = getAIClient();
+    const schema = {
+      type: Type.OBJECT,
+      properties: {
+        objectives: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.STRING },
+              question: { type: Type.STRING },
+              options: {
+                type: Type.OBJECT,
+                properties: {
+                  a: { type: Type.STRING }, b: { type: Type.STRING },
+                  c: { type: Type.STRING }, d: { type: Type.STRING },
+                  e: { type: Type.STRING }
+                },
+                required: ["a", "b", "c", "d", "e"]
+              },
+              correctOption: { type: Type.STRING }
+            },
+            required: ["id", "question", "options", "correctOption"]
+          }
+        },
+        discursives: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.STRING },
+              question: { type: Type.STRING }
+            },
+            required: ["id", "question"]
+          }
+        }
+      },
+      required: ["objectives", "discursives"]
+    };
+
+    const prompt = `Com base na aula "${lessonTitle}" e na teoria fornecida: "${theory.substring(0, 2000)}", gere:
+    1. EXATAMENTE 5 questões de múltipla escolha (objetivas) com 5 alternativas cada (A-E).
+    2. EXATAMENTE 2 questões discursivas (abertas) que exijam reflexão crítica do aluno.
+    As questões devem ser desafiadoras e adequadas ao Ensino Médio.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        systemInstruction: "Você é um professor avaliador experiente. Siga rigorosamente o schema JSON.",
+        responseMimeType: "application/json",
+        responseSchema: schema,
+      },
+    });
+
+    if (!response.text) throw new Error("IA não retornou atividade.");
+    return JSON.parse(response.text.trim()) as LessonActivity;
+  });
 };
 
 export const generateLessonPlan = async (subject: string, theme: string, grade: string): Promise<LessonPlan> => {
@@ -103,19 +184,13 @@ export const generateLessonPlan = async (subject: string, theme: string, grade: 
       required: ["title", "objectives", "theory", "methodology", "suggestedActivity"]
     };
 
-    const prompt = `Você é um professor mentor de alto nível. Gere um plano de aula de 50 minutos para a disciplina de ${subject}, destinada à ${grade}ª série do Ensino Médio. 
-    O tema é: "${theme}". 
-    O plano deve ser criativo, dialogar com a realidade juvenil brasileira e incluir:
-    1. Objetivos claros.
-    2. Texto teórico denso mas acessível para o professor ler ou distribuir.
-    3. Metodologia dividida em Introdução (10 min), Desenvolvimento (30 min) e Fechamento (10 min).
-    4. Uma sugestão de atividade prática engajadora.`;
+    const prompt = `Gere plano de aula: ${subject}, ${grade}ª série. Tema: "${theme}".`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Especialista em didática para o Ensino Médio. Linguagem clara e acadêmica.",
+        systemInstruction: "Professor mentor. Plano de 50 min.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
@@ -168,13 +243,13 @@ export const generateBimonthlyEvaluation = async (
       required: ["subject", "grade", "bimester", "questions"]
     };
 
-    const prompt = `Gere avaliação de ${subjectName}, ${grade}ª Série, ${bimester}º Bimestre. Temas: ${topics.slice(0,3).join(", ")}.`;
+    const prompt = `Gere avaliação de ${subjectName}, ${grade}ª Série, ${bimester}º Bimestre.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Professor avaliador. Gere 5 questões ENEM.",
+        systemInstruction: "Gere 5 questões ENEM.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
@@ -214,7 +289,7 @@ export const evaluateActivities = async (
       required: ["generalComment", "corrections"]
     };
 
-    const prompt = `Corrija: Aula ${lessonTitle}. Respostas: ${JSON.stringify(questionsAndAnswers)}`;
+    const prompt = `Corrija as respostas do aluno para a aula ${lessonTitle}. Respostas: ${JSON.stringify(questionsAndAnswers)}`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
