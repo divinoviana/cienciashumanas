@@ -15,6 +15,58 @@ import {
   Library, ListChecks, Reply, Key, UserMinus, AlertTriangle, Camera, Upload, Eye, MessageSquareQuote, UserPlus, Pencil, Layers
 } from 'lucide-react';
 
+// Componente otimizado para buscar a foto de cada aluno individualmente, evitando o timeout.
+const StudentAvatar: React.FC<{ studentId?: string; studentName: string }> = ({ studentId, studentName }) => {
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchPhoto = async () => {
+      if (!studentId) {
+          setLoading(false);
+          return;
+      }
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('students')
+          .select('photo_url')
+          .eq('id', studentId)
+          .single();
+        
+        if (error) throw error;
+
+        if (!isCancelled && data?.photo_url) {
+          setPhoto(data.photo_url);
+        }
+      } catch (err) {
+        console.error("Photo fetch error for student", studentId, err);
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchPhoto();
+    return () => { isCancelled = true; };
+  }, [studentId]);
+
+  if (loading) {
+    return <div className="w-full h-full bg-slate-200 animate-pulse" />;
+  }
+
+  return (
+    <img 
+      src={photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=random`} 
+      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+      loading="lazy"
+      alt={studentName}
+    />
+  );
+};
+
+
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { teacherSubject, loginTeacher, logoutTeacher } = useAuth();
@@ -178,8 +230,9 @@ export const AdminDashboard: React.FC = () => {
         msgQuery = msgQuery.eq('subject', teacherSubject);
       }
 
+      // Consulta otimizada: carrega apenas os dados essenciais dos alunos para evitar timeout.
       const [stRes, subRes, msgRes] = await Promise.all([
-        supabase.from('students').select('*').order('name'),
+        supabase.from('students').select('id, name, email, grade, school_class').order('name'),
         subQuery,
         msgQuery
       ]);
@@ -276,23 +329,6 @@ export const AdminDashboard: React.FC = () => {
       if (selectedStudent) fetchStudentNotes(selectedStudent.id);
     } catch (e: any) {
       alert("Erro ao excluir anotação: " + e.message);
-    }
-  };
-
-  const handleDeleteSubmission = async (subId: string) => {
-    if (!confirm("Deseja realmente excluir/cancelar este envio? Isso permitirá que o estudante realize a atividade ou prova novamente.")) return;
-    try {
-      const { error } = await supabase
-        .from('submissions')
-        .delete()
-        .eq('id', subId);
-      
-      if (error) throw error;
-      
-      setSubmissions(prev => prev.filter(s => s.id !== subId));
-      alert("Envio cancelado com sucesso. O estudante já pode refazer.");
-    } catch (e: any) {
-      alert("Erro ao cancelar envio: " + e.message);
     }
   };
 
@@ -726,8 +762,8 @@ export const AdminDashboard: React.FC = () => {
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 space-y-8">
                     <div className="flex items-center gap-6">
-                        <div className="w-32 h-32 rounded-[32px] overflow-hidden border-4 border-white shadow-xl flex-shrink-0">
-                            <img src={selectedStudent.photo_url} className="w-full h-full object-cover" />
+                        <div className="w-32 h-32 rounded-[32px] overflow-hidden border-4 border-white shadow-xl flex-shrink-0 bg-slate-100">
+                            <StudentAvatar studentId={selectedStudent.id} studentName={selectedStudent.name} />
                         </div>
                         <div className="flex-1">
                             <h4 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">{selectedStudent.name}</h4>
@@ -885,7 +921,7 @@ export const AdminDashboard: React.FC = () => {
                     <div key={sub.id} className="bg-white rounded-[32px] border shadow-sm p-6 flex flex-col md:flex-row justify-between items-center gap-6 hover:shadow-md transition-all group">
                        <div className="flex items-center gap-4 flex-1">
                           <div className="w-14 h-14 rounded-2xl bg-slate-100 overflow-hidden border-2 border-white shadow-md">
-                              {sub.student_photo ? <img src={sub.student_photo} className="w-full h-full object-cover" /> : <User className="m-auto mt-3 text-slate-300"/>}
+                            <StudentAvatar studentId={students.find(s => s.name === sub.student_name)?.id} studentName={sub.student_name} />
                           </div>
                           <div>
                               <h3 className="font-black text-slate-800 uppercase text-sm">{sub.student_name}</h3>
@@ -893,11 +929,8 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                        </div>
                        <div className="flex items-center gap-6">
-                          <div className="text-right mr-4"> <p className="text-[9px] font-black text-slate-400 uppercase">Nota IA</p> <div className="bg-slate-50 px-4 py-1.5 rounded-xl font-black text-tocantins-blue text-sm shadow-inner">{sub.score?.toFixed(1)}</div> </div>
-                          <div className="flex gap-2">
-                             <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="bg-tocantins-blue text-white p-4 rounded-2xl shadow-lg hover:shadow-blue-200 hover:-translate-y-1 transition-all flex items-center gap-2 text-xs font-black uppercase"> <Eye size={18}/> Ver e Avaliar </button>
-                             <button onClick={() => handleDeleteSubmission(sub.id)} className="bg-slate-100 text-slate-400 p-4 rounded-2xl hover:bg-red-600 hover:text-white transition-all shadow-sm"> <Trash2 size={18}/> </button>
-                          </div>
+                          <div className="text-right"> <p className="text-[9px] font-black text-slate-400 uppercase">Nota IA</p> <div className="bg-slate-50 px-4 py-1.5 rounded-xl font-black text-tocantins-blue text-sm shadow-inner">{sub.score?.toFixed(1)}</div> </div>
+                          <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="bg-tocantins-blue text-white p-4 rounded-2xl shadow-lg hover:shadow-blue-200 hover:-translate-y-1 transition-all flex items-center gap-2 text-xs font-black uppercase"> <Eye size={18}/> Ver e Avaliar </button>
                        </div>
                     </div>
                   ))
@@ -912,7 +945,7 @@ export const AdminDashboard: React.FC = () => {
                     filteredStudents.map(st => (
                       <button key={st.id} onClick={() => setSelectedStudent(st)} className="bg-white p-4 rounded-[32px] border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden text-left">
                           <div className="w-full aspect-square rounded-2xl bg-slate-100 mb-4 overflow-hidden shadow-inner border-2 border-white">
-                              {st.photo_url ? <img src={st.photo_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" /> : <User className="m-auto mt-6 text-slate-300" size={40}/>}
+                             <StudentAvatar studentId={st.id} studentName={st.name} />
                           </div>
                           <h4 className="font-black text-slate-800 text-[10px] uppercase truncate px-1">{st.name}</h4>
                           <p className="text-[8px] font-black text-tocantins-blue uppercase mt-1">Série: {st.grade}ª • Turma: {st.school_class}</p>
@@ -933,7 +966,9 @@ export const AdminDashboard: React.FC = () => {
                             {chatSessions.length === 0 ? <div className="p-10 text-center text-slate-400 text-[10px] font-bold uppercase">Sem conversas ativas.</div> : 
                                 chatSessions.map(session => (
                                     <button key={session.studentId} onClick={() => setSelectedChatStudentId(session.studentId)} className={`w-full p-4 flex items-center gap-4 transition-colors text-left hover:bg-slate-50 ${selectedChatStudentId === session.studentId ? 'bg-blue-50 border-r-4 border-tocantins-blue' : ''}`}>
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 flex-shrink-0 overflow-hidden border"> {session.photoUrl ? <img src={session.photoUrl} className="w-full h-full object-cover"/> : <User className="m-auto mt-2 text-slate-300"/>} </div>
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-100 flex-shrink-0 overflow-hidden border"> 
+                                            <StudentAvatar studentId={session.studentId} studentName={session.studentName} />
+                                        </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-baseline mb-1"> <h4 className="font-black text-slate-800 text-[10px] uppercase truncate">{session.studentName}</h4> <span className="text-[8px] text-slate-400 font-bold">{new Date(session.timestamp).toLocaleDateString()}</span> </div>
                                             <p className="text-[10px] text-slate-500 font-medium truncate">{session.lastMessage}</p>
@@ -947,7 +982,9 @@ export const AdminDashboard: React.FC = () => {
                         {selectedChatStudentId ? (
                             <>
                                 <div className="p-4 border-b bg-slate-50 flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-slate-200 overflow-hidden"> <img src={students.find(s => s.id === selectedChatStudentId)?.photo_url} className="w-full h-full object-cover"/> </div>
+                                    <div className="w-10 h-10 rounded-xl bg-slate-200 overflow-hidden"> 
+                                        <StudentAvatar studentId={selectedChatStudentId} studentName={students.find(s => s.id === selectedChatStudentId)?.name || ''} />
+                                    </div>
                                     <h4 className="font-black text-slate-800 text-xs uppercase">{students.find(s => s.id === selectedChatStudentId)?.name}</h4>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
@@ -1068,16 +1105,18 @@ export const AdminDashboard: React.FC = () => {
                           {filteredSubmissions.length === 0 ? <tr><td colSpan={5} className="p-20 text-center text-slate-300 font-bold">Nenhum resultado.</td></tr> : 
                              filteredSubmissions.map(sub => (
                                 <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors group">
-                                   <td className="p-6"> <div className="flex items-center gap-3"> <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden"> <img src={sub.student_photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(sub.student_name)}`} className="w-full h-full object-cover"/> </div> <span className="text-xs font-bold text-slate-700 uppercase">{sub.student_name}</span> </div> </td>
+                                   <td className="p-6"> 
+                                      <div className="flex items-center gap-3"> 
+                                          <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden"> 
+                                              <StudentAvatar studentId={students.find(s => s.name === sub.student_name)?.id} studentName={sub.student_name} />
+                                          </div> 
+                                          <span className="text-xs font-bold text-slate-700 uppercase">{sub.student_name}</span> 
+                                      </div> 
+                                   </td>
                                    <td className="p-6"> <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase">{sub.lesson_title}</span> </td>
                                    <td className="p-6 text-xs font-bold text-slate-500 uppercase">{sub.school_class}</td>
                                    <td className="p-6"> <div className="w-10 h-10 rounded-xl bg-tocantins-blue text-white flex items-center justify-center font-black mx-auto shadow-lg shadow-blue-100">{sub.score?.toFixed(1)}</div> </td>
-                                   <td className="p-6 text-right"> 
-                                      <div className="flex justify-end gap-2">
-                                        <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="p-3 bg-slate-100 text-slate-500 hover:bg-tocantins-blue hover:text-white rounded-xl transition-all" title="Ver Detalhes"> <Eye size={18}/> </button> 
-                                        <button onClick={() => handleDeleteSubmission(sub.id)} className="p-3 bg-slate-100 text-slate-500 hover:bg-red-600 hover:text-white rounded-xl transition-all" title="Cancelar Envio"> <Trash2 size={18}/> </button>
-                                      </div>
-                                   </td>
+                                   <td className="p-6 text-right"> <button onClick={() => { setViewingSubmission(sub); setManualFeedback(sub.teacher_feedback || ''); }} className="p-3 bg-slate-100 text-slate-500 hover:bg-tocantins-blue hover:text-white rounded-xl transition-all"> <Eye size={18}/> </button> </td>
                                 </tr>
                              ))
                           }
