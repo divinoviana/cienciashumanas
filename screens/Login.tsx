@@ -93,7 +93,7 @@ export const Login: React.FC = () => {
   };
 
   const getClassesByGrade = (grade: string) => {
-    if (grade === '1') return Array.from({length: 6}, (_, i) => `13.0${i+1}`);
+    if (grade === '1') return Array.from({length: 7}, (_, i) => `13.0${i+1}`);
     if (grade === '2') return Array.from({length: 8}, (_, i) => `23.0${i+1}`);
     if (grade === '3') return Array.from({length: 9}, (_, i) => `33.0${i+1}`);
     return [];

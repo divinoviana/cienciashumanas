@@ -508,7 +508,7 @@ export const AdminDashboard: React.FC = () => {
 
   const classOptions = useMemo(() => {
     const grade = filterGrade === 'all' ? examGrade : filterGrade;
-    if (grade === '1') return Array.from({length: 6}, (_, i) => `13.0${i+1}`);
+    if (grade === '1') return Array.from({length: 7}, (_, i) => `13.0${i+1}`);
     if (grade === '2') return Array.from({length: 8}, (_, i) => `23.0${i+1}`);
     if (grade === '3') return Array.from({length: 9}, (_, i) => `33.0${i+1}`);
     return [];
@@ -693,7 +693,7 @@ export const AdminDashboard: React.FC = () => {
                         </select>
                         <select required className="p-4 bg-slate-50 border rounded-2xl outline-none" value={newStudentData.school_class} onChange={e => setNewStudentData({...newStudentData, school_class: e.target.value})}>
                             <option value="">Turma</option>
-                            {newStudentData.grade === '1' && Array.from({length: 6}, (_, i) => `13.0${i+1}`).map(c => <option key={c} value={c}>{c}</option>)}
+                            {newStudentData.grade === '1' && Array.from({length: 7}, (_, i) => `13.0${i+1}`).map(c => <option key={c} value={c}>{c}</option>)}
                             {newStudentData.grade === '2' && Array.from({length: 8}, (_, i) => `23.0${i+1}`).map(c => <option key={c} value={c}>{c}</option>)}
                             {newStudentData.grade === '3' && Array.from({length: 9}, (_, i) => `33.0${i+1}`).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
