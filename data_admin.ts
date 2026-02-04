@@ -2,10 +2,10 @@
 import { Subject } from './types';
 
 export const ADMIN_PASSWORDS: Record<Subject, string> = {
-  filosofia: '3614526312',
-  geografia: 'geo2026',
-  historia: 'his2026',
-  sociologia: 'soc2026'
+  filosofia: 'fred@fred2026',
+  geografia: 'fred@fred2026',
+  historia: 'fred@fred2026',
+  sociologia: 'fred@fred2026'
 };
 
 export const TEACHER_INFO = {
