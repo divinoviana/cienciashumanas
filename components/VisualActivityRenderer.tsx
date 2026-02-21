@@ -17,10 +17,12 @@ interface Props {
 const COLORS = ['#003399', '#FFCE00', '#009933', '#6366f1', '#ec4899', '#f59e0b'];
 
 export const VisualActivityRenderer: React.FC<Props> = ({ content }) => {
+  if (!content || !content.data) return null;
   const { type, data } = content;
 
   if (type === 'image') {
     const imageData = data as ActivityImage;
+    if (!imageData.url) return null;
     return (
       <div className="my-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className="flex items-center gap-2 mb-4">
@@ -30,7 +32,7 @@ export const VisualActivityRenderer: React.FC<Props> = ({ content }) => {
         <div className="rounded-3xl overflow-hidden border border-slate-200 shadow-lg bg-white p-2">
           <img 
             src={imageData.url} 
-            alt={imageData.caption} 
+            alt={imageData.caption || 'Ilustração'} 
             className="w-full h-auto rounded-2xl"
             referrerPolicy="no-referrer"
           />
@@ -46,11 +48,12 @@ export const VisualActivityRenderer: React.FC<Props> = ({ content }) => {
 
   if (type === 'chart') {
     const chartData = data as ChartData;
+    if (!chartData.data || !Array.isArray(chartData.data)) return null;
     return (
       <div className="my-8 bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
         <div className="flex items-center gap-2 mb-6">
           <BarChart3 className="text-indigo-500" size={20} />
-          <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest">Análise de Dados: {chartData.title}</h4>
+          <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest">Análise de Dados: {chartData.title || 'Gráfico'}</h4>
         </div>
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -99,11 +102,12 @@ export const VisualActivityRenderer: React.FC<Props> = ({ content }) => {
 
   if (type === 'table') {
     const tableData = data as TableData;
+    if (!tableData.headers || !tableData.rows) return null;
     return (
       <div className="my-8 bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex items-center gap-2 mb-6">
           <Table className="text-emerald-500" size={20} />
-          <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest">Informação Estruturada: {tableData.title}</h4>
+          <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-widest">Informação Estruturada: {tableData.title || 'Tabela'}</h4>
         </div>
         <div className="overflow-x-auto rounded-2xl border border-slate-100">
           <table className="w-full text-left border-collapse">
@@ -135,6 +139,7 @@ export const VisualActivityRenderer: React.FC<Props> = ({ content }) => {
 
   if (type === 'crossword') {
     const crosswordData = data as CrosswordData;
+    if (!crosswordData.grid || !crosswordData.clues) return null;
     return (
       <div className="my-8 bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm">
         <div className="flex items-center gap-2 mb-6">
@@ -155,8 +160,8 @@ export const VisualActivityRenderer: React.FC<Props> = ({ content }) => {
               {crosswordData.grid.map((row, rIdx) => (
                 row.map((cell, cIdx) => {
                   const isBlock = cell === ' ' || cell === null || cell === '#';
-                  const acrossClue = crosswordData.clues.across.find(c => c.row === rIdx && c.col === cIdx);
-                  const downClue = crosswordData.clues.down.find(c => c.row === rIdx && c.col === cIdx);
+                  const acrossClue = crosswordData.clues.across?.find(c => c.row === rIdx && c.col === cIdx);
+                  const downClue = crosswordData.clues.down?.find(c => c.row === rIdx && c.col === cIdx);
                   const clueNumber = acrossClue?.number || downClue?.number;
 
                   return (
@@ -188,7 +193,7 @@ export const VisualActivityRenderer: React.FC<Props> = ({ content }) => {
             <div>
               <h5 className="font-bold text-slate-800 mb-2 border-b border-slate-100 pb-1 text-sm">Horizontais</h5>
               <ul className="space-y-2">
-                {crosswordData.clues.across.map(clue => (
+                {crosswordData.clues.across?.map(clue => (
                   <li key={`across-${clue.number}`} className="text-xs text-slate-600 leading-relaxed">
                     <span className="font-black text-tocantins-blue mr-2">{clue.number}.</span>
                     {clue.clue}
@@ -199,7 +204,7 @@ export const VisualActivityRenderer: React.FC<Props> = ({ content }) => {
             <div>
               <h5 className="font-bold text-slate-800 mb-2 border-b border-slate-100 pb-1 text-sm">Verticais</h5>
               <ul className="space-y-2">
-                {crosswordData.clues.down.map(clue => (
+                {crosswordData.clues.down?.map(clue => (
                   <li key={`down-${clue.number}`} className="text-xs text-slate-600 leading-relaxed">
                     <span className="font-black text-tocantins-blue mr-2">{clue.number}.</span>
                     {clue.clue}
