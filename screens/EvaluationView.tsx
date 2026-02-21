@@ -166,7 +166,7 @@ export const EvaluationView: React.FC = () => {
                  </div>
               )}
 
-              {exam.questions.map((q: any, idx: number) => (
+              {exam.questions && Array.isArray(exam.questions) && exam.questions.map((q: any, idx: number) => (
                  <div key={idx} className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden">
                     <div className="p-8 border-b bg-slate-50/50 flex items-center justify-between">
                        <span className="bg-slate-900 text-white w-10 h-10 rounded-xl flex items-center justify-center font-black">

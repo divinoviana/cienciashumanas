@@ -192,7 +192,7 @@ export const LessonView: React.FC = () => {
                  </div>
                  <Loader2 className="animate-spin text-tocantins-blue" size={24}/>
               </div>
-            ) : lessonActivity ? (
+            ) : (lessonActivity && lessonActivity.objectives && lessonActivity.discursives) ? (
               <div className="space-y-12">
                 
                 {/* RECURSO VISUAL DINÂMICO */}
