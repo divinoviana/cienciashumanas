@@ -8,6 +8,7 @@ import { ArrowLeft, BookOpen, PenTool, Sparkles, Home, Loader2, ListChecks, Help
 import { evaluateActivities, AIResponse, generateLessonActivity, LessonActivity } from '../services/aiService';
 import { AIFeedbackModal } from '../components/AIFeedbackModal';
 import { useAuth } from '../context/AuthContext';
+import { VisualActivityRenderer } from '../components/VisualActivityRenderer';
 
 export const LessonView: React.FC = () => {
   const { lessonId } = useParams<{ lessonId: string }>();
@@ -187,13 +188,18 @@ export const LessonView: React.FC = () => {
                  </div>
                  <div>
                     <h4 className="font-black text-slate-800 uppercase tracking-tight">IA está criando sua atividade...</h4>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Gerando 5 objetivas e 2 discursivas agora</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Gerando 5 objetivas, 2 discursivas e recursos visuais agora</p>
                  </div>
                  <Loader2 className="animate-spin text-tocantins-blue" size={24}/>
               </div>
             ) : lessonActivity ? (
               <div className="space-y-12">
                 
+                {/* RECURSO VISUAL DINÂMICO */}
+                {lessonActivity.visualContent && (
+                  <VisualActivityRenderer content={lessonActivity.visualContent} />
+                )}
+
                 {/* QUESTÕES OBJETIVAS */}
                 <div className="space-y-8">
                    <div className="flex items-center gap-2 mb-4">

@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { subjectsInfo } from '../data';
 import { Subject } from '../types';
 import { ArrowLeft, BrainCircuit, CheckCircle2, Clock, Send, Loader2, Award, Info, Lock } from 'lucide-react';
+import { VisualActivityRenderer } from '../components/VisualActivityRenderer';
 
 export const EvaluationView: React.FC = () => {
   const { examId } = useParams<{ examId: string }>();
@@ -158,6 +159,12 @@ export const EvaluationView: React.FC = () => {
                     <Clock size={14}/> QUESTÕES: {Object.keys(answers).length}/{exam.questions.length}
                  </div>
               </div>
+
+              {exam.visualContent && (
+                 <div className="bg-white rounded-[40px] shadow-xl border border-slate-100 p-8 mb-8">
+                    <VisualActivityRenderer content={exam.visualContent} />
+                 </div>
+              )}
 
               {exam.questions.map((q: any, idx: number) => (
                  <div key={idx} className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden">

@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
+import { ChartData, TableData, CrosswordData, ActivityImage } from "../types";
 
 export interface CorrectionResult {
   question: string;
@@ -35,6 +36,10 @@ export interface GeneratedEvaluation {
   grade: string;
   bimester: string;
   questions: EvaluationQuestion[];
+  visualContent?: {
+    type: 'image' | 'chart' | 'table' | 'crossword';
+    data: any;
+  };
 }
 
 export interface LessonPlan {
@@ -65,6 +70,10 @@ export interface DiscursiveQuestion {
 export interface LessonActivity {
   objectives: ObjectiveQuestion[];
   discursives: DiscursiveQuestion[];
+  visualContent?: {
+    type: 'image' | 'chart' | 'table' | 'crossword';
+    data: any; // Will be cast to specific type
+  };
 }
 
 /**
@@ -91,11 +100,39 @@ const callAIWithRetry = async (fn: () => Promise<any>, retries = 3, delay = 2000
 };
 
 const getAIClient = () => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("Erro de Configuração: API_KEY não detectada.");
+    throw new Error("Erro de Configuração: API_KEY não detectada. Certifique-se de que a chave está configurada no ambiente.");
   }
   return new GoogleGenAI({ apiKey });
+};
+
+export const generateActivityImage = async (prompt: string): Promise<string> => {
+  return callAIWithRetry(async () => {
+    const ai = getAIClient();
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [
+          {
+            text: `Gere uma ilustração didática e séria para uma aula de Ciências Humanas sobre: ${prompt}. Estilo: Ilustração vetorial limpa, cores sóbrias, adequada para material escolar.`,
+          },
+        ],
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: "16:9",
+        },
+      },
+    });
+
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
+    }
+    throw new Error("Falha ao gerar imagem.");
+  });
 };
 
 // Nova função para gerar a atividade 5+2 para o aluno
@@ -136,6 +173,14 @@ export const generateLessonActivity = async (lessonTitle: string, theory: string
             },
             required: ["id", "question"]
           }
+        },
+        visualContent: {
+          type: Type.OBJECT,
+          properties: {
+            type: { type: Type.STRING, description: "Tipo de conteúdo visual: 'chart', 'table' ou 'crossword'" },
+            data: { type: Type.OBJECT, description: "Dados estruturados para o componente visual" }
+          },
+          required: ["type", "data"]
         }
       },
       required: ["objectives", "discursives"]
@@ -144,20 +189,35 @@ export const generateLessonActivity = async (lessonTitle: string, theory: string
     const prompt = `Com base na aula "${lessonTitle}" e na teoria fornecida: "${theory.substring(0, 2000)}", gere:
     1. EXATAMENTE 5 questões de múltipla escolha (objetivas) com 5 alternativas cada (A-E).
     2. EXATAMENTE 2 questões discursivas (abertas) que exijam reflexão crítica do aluno.
+    3. UM CONTEÚDO VISUAL COMPLEMENTAR (opcional, mas recomendado se o tema permitir):
+       - Se for 'chart': Gere dados para um gráfico (bar, line ou pie) com 'title' e 'data' (array de {name, value}).
+       - Se for 'table': Gere uma tabela com 'title', 'headers' e 'rows'.
+       - Se for 'crossword': Gere uma palavra cruzada com 'grid' (array 2D de letras/espaços) e 'clues' (across/down com number, clue, answer, row, col).
+    
     As questões devem ser desafiadoras e adequadas ao Ensino Médio.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Você é um professor avaliador experiente. Siga rigorosamente o schema JSON.",
+        systemInstruction: "Você é um professor avaliador experiente. Siga rigorosamente o schema JSON. Para palavras cruzadas, garanta que o grid seja consistente com as dicas.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
     });
 
     if (!response.text) throw new Error("IA não retornou atividade.");
-    return JSON.parse(response.text.trim()) as LessonActivity;
+    const activity = JSON.parse(response.text.trim()) as LessonActivity;
+
+    // Se o tema for rico em imagens, podemos tentar gerar uma imagem também
+    try {
+      const imageUrl = await generateActivityImage(lessonTitle);
+      activity.visualContent = activity.visualContent || { type: 'image', data: { url: imageUrl, caption: `Ilustração sobre ${lessonTitle}` } };
+    } catch (e) {
+      console.warn("Não foi possível gerar imagem, continuando com outros conteúdos.");
+    }
+
+    return activity;
   });
 };
 
@@ -238,25 +298,44 @@ export const generateBimonthlyEvaluation = async (
             },
             required: ["id", "textFragment", "questionText", "options", "correctOption", "difficulty", "explanation"]
           }
+        },
+        visualContent: {
+          type: Type.OBJECT,
+          properties: {
+            type: { type: Type.STRING, description: "Tipo de conteúdo visual: 'chart', 'table' ou 'crossword'" },
+            data: { type: Type.OBJECT, description: "Dados estruturados para o componente visual" }
+          },
+          required: ["type", "data"]
         }
       },
       required: ["subject", "grade", "bimester", "questions"]
     };
 
-    const prompt = `Gere avaliação de ${subjectName}, ${grade}ª Série, ${bimester}º Bimestre.`;
+    const prompt = `Gere avaliação de ${subjectName}, ${grade}ª Série, ${bimester}º Bimestre. Tópicos: ${topics.join(', ')}.
+    Inclua um recurso visual (gráfico, tabela ou palavra cruzada) que ajude na interpretação das questões.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Gere 5 questões ENEM.",
+        systemInstruction: "Gere 5 questões ENEM. Siga rigorosamente o schema JSON.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
     });
 
     if (!response.text) throw new Error("IA retornou vazio.");
-    return JSON.parse(response.text.trim()) as GeneratedEvaluation;
+    const evaluation = JSON.parse(response.text.trim()) as GeneratedEvaluation;
+
+    // Tenta gerar imagem para a prova também
+    try {
+      const imageUrl = await generateActivityImage(`Avaliação de ${subjectName}: ${topics[0]}`);
+      evaluation.visualContent = evaluation.visualContent || { type: 'image', data: { url: imageUrl, caption: `Contexto para a avaliação de ${subjectName}` } };
+    } catch (e) {
+      console.warn("Não foi possível gerar imagem para avaliação.");
+    }
+
+    return evaluation;
   });
 };
 
