@@ -196,24 +196,28 @@ export const generateLessonActivity = async (lessonTitle: string, theory: string
     
     As questões devem ser desafiadoras e adequadas ao Ensino Médio.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        systemInstruction: "Você é um professor avaliador experiente. Siga rigorosamente o schema JSON. Para palavras cruzadas, garanta que o grid seja consistente com as dicas.",
-        responseMimeType: "application/json",
-        responseSchema: schema,
-      },
-    });
+    // Run text and image generation in parallel
+    const [response, imageUrlResult] = await Promise.allSettled([
+      ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          systemInstruction: "Você é um professor avaliador experiente. Siga rigorosamente o schema JSON. Para palavras cruzadas, garanta que o grid seja consistente com as dicas.",
+          responseMimeType: "application/json",
+          responseSchema: schema,
+        },
+      }),
+      generateActivityImage(lessonTitle)
+    ]);
 
-    if (!response.text) throw new Error("IA não retornou atividade.");
-    const activity = JSON.parse(response.text.trim()) as LessonActivity;
+    if (response.status === 'rejected') throw new Error("IA não retornou atividade.");
+    if (!response.value.text) throw new Error("IA não retornou atividade.");
+    
+    const activity = JSON.parse(response.value.text.trim()) as LessonActivity;
 
-    // Se o tema for rico em imagens, podemos tentar gerar uma imagem também
-    try {
-      const imageUrl = await generateActivityImage(lessonTitle);
-      activity.visualContent = activity.visualContent || { type: 'image', data: { url: imageUrl, caption: `Ilustração sobre ${lessonTitle}` } };
-    } catch (e) {
+    if (imageUrlResult.status === 'fulfilled' && imageUrlResult.value) {
+      activity.visualContent = activity.visualContent || { type: 'image', data: { url: imageUrlResult.value, caption: `Ilustração sobre ${lessonTitle}` } };
+    } else {
       console.warn("Não foi possível gerar imagem, continuando com outros conteúdos.");
     }
 
@@ -314,24 +318,28 @@ export const generateBimonthlyEvaluation = async (
     const prompt = `Gere avaliação de ${subjectName}, ${grade}ª Série, ${bimester}º Bimestre. Tópicos: ${topics.join(', ')}.
     Inclua um recurso visual (gráfico, tabela ou palavra cruzada) que ajude na interpretação das questões.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        systemInstruction: "Gere 5 questões ENEM. Siga rigorosamente o schema JSON.",
-        responseMimeType: "application/json",
-        responseSchema: schema,
-      },
-    });
+    // Run text and image generation in parallel
+    const [response, imageUrlResult] = await Promise.allSettled([
+      ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          systemInstruction: "Gere 5 questões ENEM. Siga rigorosamente o schema JSON.",
+          responseMimeType: "application/json",
+          responseSchema: schema,
+        },
+      }),
+      generateActivityImage(`Avaliação de ${subjectName}: ${topics[0]}`)
+    ]);
 
-    if (!response.text) throw new Error("IA retornou vazio.");
-    const evaluation = JSON.parse(response.text.trim()) as GeneratedEvaluation;
+    if (response.status === 'rejected') throw new Error("IA retornou vazio.");
+    if (!response.value.text) throw new Error("IA retornou vazio.");
+    
+    const evaluation = JSON.parse(response.value.text.trim()) as GeneratedEvaluation;
 
-    // Tenta gerar imagem para a prova também
-    try {
-      const imageUrl = await generateActivityImage(`Avaliação de ${subjectName}: ${topics[0]}`);
-      evaluation.visualContent = evaluation.visualContent || { type: 'image', data: { url: imageUrl, caption: `Contexto para a avaliação de ${subjectName}` } };
-    } catch (e) {
+    if (imageUrlResult.status === 'fulfilled' && imageUrlResult.value) {
+      evaluation.visualContent = evaluation.visualContent || { type: 'image', data: { url: imageUrlResult.value, caption: `Contexto para a avaliação de ${subjectName}` } };
+    } else {
       console.warn("Não foi possível gerar imagem para avaliação.");
     }
 
