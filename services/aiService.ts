@@ -178,7 +178,25 @@ export const generateLessonActivity = async (lessonTitle: string, theory: string
           type: Type.OBJECT,
           properties: {
             type: { type: Type.STRING, description: "Tipo de conteúdo visual: 'chart', 'table' ou 'crossword'" },
-            data: { type: Type.OBJECT, description: "Dados estruturados para o componente visual" }
+            data: { 
+              type: Type.OBJECT, 
+              description: "Dados estruturados para o componente visual",
+              properties: {
+                title: { type: Type.STRING },
+                type: { type: Type.STRING },
+                data: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.NUMBER } } } },
+                headers: { type: Type.ARRAY, items: { type: Type.STRING } },
+                rows: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } },
+                grid: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } },
+                clues: {
+                  type: Type.OBJECT,
+                  properties: {
+                    across: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { number: { type: Type.NUMBER }, clue: { type: Type.STRING }, answer: { type: Type.STRING }, row: { type: Type.NUMBER }, col: { type: Type.NUMBER } } } },
+                    down: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { number: { type: Type.NUMBER }, clue: { type: Type.STRING }, answer: { type: Type.STRING }, row: { type: Type.NUMBER }, col: { type: Type.NUMBER } } } }
+                  }
+                }
+              }
+            }
           },
           required: ["type", "data"]
         }
@@ -307,7 +325,25 @@ export const generateBimonthlyEvaluation = async (
           type: Type.OBJECT,
           properties: {
             type: { type: Type.STRING, description: "Tipo de conteúdo visual: 'chart', 'table' ou 'crossword'" },
-            data: { type: Type.OBJECT, description: "Dados estruturados para o componente visual" }
+            data: { 
+              type: Type.OBJECT, 
+              description: "Dados estruturados para o componente visual",
+              properties: {
+                title: { type: Type.STRING },
+                type: { type: Type.STRING },
+                data: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.NUMBER } } } },
+                headers: { type: Type.ARRAY, items: { type: Type.STRING } },
+                rows: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } },
+                grid: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } },
+                clues: {
+                  type: Type.OBJECT,
+                  properties: {
+                    across: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { number: { type: Type.NUMBER }, clue: { type: Type.STRING }, answer: { type: Type.STRING }, row: { type: Type.NUMBER }, col: { type: Type.NUMBER } } } },
+                    down: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { number: { type: Type.NUMBER }, clue: { type: Type.STRING }, answer: { type: Type.STRING }, row: { type: Type.NUMBER }, col: { type: Type.NUMBER } } } }
+                  }
+                }
+              }
+            }
           },
           required: ["type", "data"]
         }
