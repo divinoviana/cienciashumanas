@@ -100,7 +100,7 @@ const callAIWithRetry = async (fn: () => Promise<any>, retries = 3, delay = 2000
 };
 
 const getAIClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
     throw new Error("Erro de Configuração: API_KEY não detectada. Certifique-se de que a chave está configurada no ambiente.");
   }

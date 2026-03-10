@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
   // Captura as variáveis: prioriza o que está no arquivo .env, 
   // depois o que está no ambiente do sistema
   const API_KEY = env.API_KEY || (process as any).env.API_KEY;
-  const GEMINI_API_KEY = env.GEMINI_API_KEY || (process as any).env.GEMINI_API_KEY || API_KEY;
+  const GEMINI_API_KEY = env.VITE_GEMINI_API_KEY || (process as any).env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY || (process as any).env.GEMINI_API_KEY || API_KEY;
   const SUPABASE_URL = env.SUPABASE_URL || (process as any).env.SUPABASE_URL;
   const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY || (process as any).env.SUPABASE_ANON_KEY;
 
