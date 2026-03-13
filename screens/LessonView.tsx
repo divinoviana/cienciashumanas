@@ -4,7 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { curriculumData } from '../data';
 import { ActivityInput } from '../components/ActivityInput';
 import { SubmissionBar, SubmissionItem } from '../components/SubmissionBar';
-import { ArrowLeft, BookOpen, PenTool, Sparkles, Home, Loader2, ListChecks, HelpCircle } from 'lucide-react';
+import { ArrowLeft, BookOpen, PenTool, Sparkles, Home, Loader2, ListChecks, HelpCircle, CheckCircle2 } from 'lucide-react';
 import { evaluateActivities, AIResponse, generateLessonActivity, LessonActivity } from '../services/aiService';
 import { AIFeedbackModal } from '../components/AIFeedbackModal';
 import { useAuth } from '../context/AuthContext';
@@ -36,16 +36,67 @@ export const LessonView: React.FC = () => {
     setLessonActivity(null);
   }, [lessonId]);
 
-  // Busca a lição e gera atividade via IA
+  // Busca a lição e gera atividade via banco de dados
   useEffect(() => {
     const fetchActivity = async () => {
       if (!foundLesson) return;
       setIsActivityLoading(true);
       try {
-        const activity = await generateLessonActivity(foundLesson.title, foundLesson.theory);
-        setLessonActivity(activity);
+        const { supabase } = await import('../lib/supabase');
+        
+        // 1. Fetch activity
+        const { data: actData, error: actError } = await supabase
+          .from('activities')
+          .select('id, visual_content')
+          .eq('lesson_id', lessonId)
+          .maybeSingle();
+
+        if (actError || !actData) {
+          setLessonActivity(null); // Not found
+          return;
+        }
+
+        // 2. Fetch questions
+        const { data: qData, error: qError } = await supabase
+          .from('activity_questions')
+          .select('order_num, question_bank(*)')
+          .eq('activity_id', actData.id)
+          .order('order_num', { ascending: true });
+
+        if (qError || !qData) {
+          setLessonActivity(null);
+          return;
+        }
+
+        const objectives: any[] = [];
+        const discursives: any[] = [];
+
+        qData.forEach((row: any) => {
+          const q = row.question_bank;
+          if (q.type === 'objective') {
+            objectives.push({
+              id: q.id,
+              question: q.question_text,
+              options: q.options,
+              correctOption: q.correct_option
+            });
+          } else if (q.type === 'discursive') {
+            discursives.push({
+              id: q.id,
+              question: q.question_text
+            });
+          }
+        });
+
+        setLessonActivity({
+          objectives,
+          discursives,
+          visualContent: actData.visual_content,
+          dbActivityId: actData.id // Save the ID for submission
+        } as any);
+
       } catch (e) {
-        console.error("Erro ao gerar atividade:", e);
+        console.error("Erro ao buscar atividade:", e);
       } finally {
         setIsActivityLoading(false);
       }
@@ -119,22 +170,49 @@ export const LessonView: React.FC = () => {
     return data;
   };
 
-  const handleAICorrection = async () => {
+  const handleLocalCorrection = async () => {
     const subData = getSubmissionData();
     if (subData.length === 0) {
-      alert("Por favor, responda as atividades antes de pedir uma análise da IA.");
+      alert("Por favor, responda as atividades antes de finalizar.");
       return;
     }
+    
+    // Grade locally
+    const corrections: any[] = [];
+    let totalScore = 0;
+    
+    lessonActivity?.objectives.forEach(q => {
+      const ans = answers[`obj-${q.id}`];
+      const isCorrect = ans === q.correctOption;
+      if (isCorrect) totalScore += 10;
+      
+      corrections.push({
+        question: q.question,
+        studentAnswer: ans ? `Opção ${ans.toUpperCase()}: ${q.options[ans as keyof typeof q.options]}` : "Não respondida",
+        isCorrect,
+        score: isCorrect ? 10 : 0,
+        feedback: isCorrect ? "Correto!" : `Incorreto. A resposta correta era a opção ${q.correctOption?.toUpperCase()}.`
+      });
+    });
+
+    lessonActivity?.discursives.forEach(q => {
+      const ans = answers[`disc-${q.id}`];
+      corrections.push({
+        question: q.question,
+        studentAnswer: ans || "Não respondida",
+        isCorrect: false,
+        score: 0,
+        feedback: "Questão discursiva. Aguardando avaliação do professor."
+      });
+    });
+
+    const localAIData: AIResponse = {
+      generalComment: "Atividade enviada com sucesso! Suas questões objetivas foram corrigidas automaticamente. As questões discursivas serão avaliadas pelo seu professor.",
+      corrections
+    };
+
+    setAiData(localAIData);
     setIsAIModalOpen(true);
-    setAiLoading(true);
-    try {
-      const result = await evaluateActivities(foundLesson!.title, foundLesson!.theory, subData.map(d => ({question: d.question, answer: d.answer})));
-      setAiData(result);
-    } catch (e) { 
-      alert("Erro na correção da IA."); 
-      setIsAIModalOpen(false); 
-    }
-    finally { setAiLoading(false); }
   };
 
   return (
@@ -252,10 +330,10 @@ export const LessonView: React.FC = () => {
 
                 <button 
                   type="button"
-                  onClick={handleAICorrection} 
+                  onClick={handleLocalCorrection} 
                   className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-6 rounded-3xl flex items-center justify-center gap-3 shadow-2xl hover:shadow-indigo-200 transition-all hover:-translate-y-1 mb-4 cursor-pointer"
                 >
-                  <Sparkles size={24} /> Analisar Meu Desempenho com IA
+                  <CheckCircle2 size={24} /> Finalizar e Ver Correção
                 </button>
 
               </div>

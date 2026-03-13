@@ -12,7 +12,7 @@ import {
   RefreshCw, Home, ShieldCheck, Trash2, Settings,
   Search, Award, StickyNote, Clock, Send, UserCircle, BrainCircuit, Sparkles, FileText, CheckCircle2,
   Filter, Download, GraduationCap, ChevronRight, ClipboardEdit, BarChart3, Printer, Wand2,
-  Library, ListChecks, Reply, Key, UserMinus, AlertTriangle, Camera, Upload, Eye, MessageSquareQuote, UserPlus, Pencil, Layers
+  Library, ListChecks, Reply, Key, UserMinus, AlertTriangle, Camera, Upload, Eye, MessageSquareQuote, UserPlus, Pencil, Layers, Database
 } from 'lucide-react';
 
 // Componente otimizado para buscar a foto de cada aluno individualmente, evitando o timeout.
@@ -80,8 +80,200 @@ export const AdminDashboard: React.FC = () => {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'submissions' | 'evaluations' | 'messages' | 'students' | 'manage' | 'exam_generator' | 'reports' | 'lessons_list' | 'teacher_profile'>('submissions');
+  const [activeTab, setActiveTab] = useState<'submissions' | 'evaluations' | 'messages' | 'students' | 'manage' | 'exam_generator' | 'reports' | 'lessons_list' | 'teacher_profile' | 'question_bank'>('submissions');
   
+  // Atividades Salvas
+  const [savedActivities, setSavedActivities] = useState<string[]>([]);
+  const [isGeneratingActivityFor, setIsGeneratingActivityFor] = useState<string | null>(null);
+  const [questionBank, setQuestionBank] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (activeTab === 'lessons_list') {
+      fetchSavedActivities();
+    }
+    if (activeTab === 'question_bank') {
+      fetchQuestionBank();
+    }
+  }, [activeTab]);
+
+  const fetchSavedActivities = async () => {
+    const { data } = await supabase.from('activities').select('lesson_id');
+    if (data) {
+      setSavedActivities(data.map(a => a.lesson_id));
+    }
+  };
+
+  const fetchQuestionBank = async () => {
+    const { data } = await supabase.from('question_bank').select('*').order('created_at', { ascending: false });
+    if (data) {
+      setQuestionBank(data);
+    }
+  };
+
+  const handleSeedDatabase = async () => {
+    if (!confirm("Isso irá gerar atividades padrão para TODAS as aulas que ainda não possuem atividade no banco de dados. Pode levar alguns segundos. Deseja continuar?")) return;
+    
+    setLoading(true);
+    try {
+      const { generateFallbackActivity } = await import('../services/aiService');
+      
+      // Get all lessons from curriculum
+      const allLessons: any[] = [];
+      curriculumData.forEach(grade => {
+        grade.bimesters.forEach(bim => {
+          bim.lessons.forEach(lesson => {
+            allLessons.push(lesson);
+          });
+        });
+      });
+
+      let addedCount = 0;
+      
+      for (const lesson of allLessons) {
+        if (savedActivities.includes(lesson.id)) continue; // Skip already saved
+        
+        const activity = generateFallbackActivity(lesson.title, lesson.theory, lesson.questions);
+        
+        // Save to DB
+        const { data: actData, error: actError } = await supabase
+          .from('activities')
+          .insert([{ 
+            lesson_id: lesson.id, 
+            title: `Atividade: ${lesson.title}`,
+            visual_content: activity.visualContent
+          }])
+          .select()
+          .single();
+          
+        if (actError) {
+          console.error("Erro ao salvar atividade:", actError);
+          continue;
+        }
+
+        const questionsToInsert = [
+          ...activity.objectives.map(q => ({
+            subject: lesson.subject,
+            topic: lesson.title,
+            type: 'objective',
+            difficulty: 'Médio',
+            question_text: q.question,
+            options: q.options,
+            correct_option: q.correctOption,
+            explanation: ''
+          })),
+          ...activity.discursives.map(q => ({
+            subject: lesson.subject,
+            topic: lesson.title,
+            type: 'discursive',
+            difficulty: 'Médio',
+            question_text: q.question,
+          }))
+        ];
+
+        const { data: qData, error: qError } = await supabase
+          .from('question_bank')
+          .insert(questionsToInsert)
+          .select();
+
+        if (qError) {
+          console.error("Erro ao salvar questões:", qError);
+          continue;
+        }
+
+        if (qData) {
+          const links = qData.map((q, idx) => ({
+            activity_id: actData.id,
+            question_id: q.id,
+            order_num: idx + 1
+          }));
+          await supabase.from('activity_questions').insert(links);
+        }
+        
+        addedCount++;
+      }
+      
+      alert(`Processo concluído! ${addedCount} atividades foram geradas e salvas no banco de dados.`);
+      fetchSavedActivities();
+      fetchQuestionBank();
+    } catch (e) {
+      console.error("Erro no seed:", e);
+      alert("Ocorreu um erro ao gerar as atividades.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateAndSaveActivity = async (lesson: any) => {
+    if (isGeneratingActivityFor) return;
+    setIsGeneratingActivityFor(lesson.id);
+    try {
+      // 1. Generate via AI
+      const { generateLessonActivity } = await import('../services/aiService');
+      const activity = await generateLessonActivity(lesson.title, lesson.theory);
+      
+      // 2. Save to DB
+      // Create Activity
+      const { data: actData, error: actError } = await supabase
+        .from('activities')
+        .insert([{ 
+          lesson_id: lesson.id, 
+          title: `Atividade: ${lesson.title}`,
+          visual_content: activity.visualContent
+        }])
+        .select()
+        .single();
+        
+      if (actError) throw actError;
+
+      // Prepare questions
+      const questionsToInsert = [
+        ...activity.objectives.map(q => ({
+          subject: lesson.subject,
+          topic: lesson.title,
+          type: 'objective',
+          difficulty: 'Médio',
+          question_text: q.question,
+          options: q.options,
+          correct_option: q.correctOption,
+          explanation: ''
+        })),
+        ...activity.discursives.map(q => ({
+          subject: lesson.subject,
+          topic: lesson.title,
+          type: 'discursive',
+          difficulty: 'Médio',
+          question_text: q.question,
+        }))
+      ];
+
+      // Insert questions
+      const { data: qData, error: qError } = await supabase
+        .from('question_bank')
+        .insert(questionsToInsert)
+        .select();
+
+      if (qError) throw qError;
+
+      // Link questions to activity
+      if (qData) {
+        const links = qData.map((q, idx) => ({
+          activity_id: actData.id,
+          question_id: q.id,
+          order_num: idx
+        }));
+        await supabase.from('activity_questions').insert(links);
+      }
+
+      alert('Atividade gerada e salva com sucesso no banco de dados!');
+      fetchSavedActivities();
+    } catch (e: any) {
+      console.error(e);
+      alert("Erro ao gerar/salvar atividade: " + e.message);
+    } finally {
+      setIsGeneratingActivityFor(null);
+    }
+  };
+
   // Perfil do Professor
   const [teacherPhoto, setTeacherPhoto] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
@@ -167,17 +359,17 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleViewLessonPlan = async (lesson: any, gradeId: number) => {
-    if (isGeneratingPlan) return;
-    setIsGeneratingPlan(true);
-    try {
-      const subjectName = subjectsInfo[lesson.subject as Subject]?.name || "Ciências Humanas";
-      const plan = await generateLessonPlan(subjectName, lesson.title, gradeId.toString());
-      setViewingLessonPlan(plan);
-    } catch (e: any) {
-      alert("Erro ao gerar roteiro: " + e.message);
-    } finally {
-      setIsGeneratingPlan(false);
-    }
+    setViewingLessonPlan({
+      title: lesson.title,
+      objectives: lesson.objectives,
+      theory: lesson.theory,
+      methodology: {
+        introduction: "Introdução ao tema e contextualização.",
+        development: lesson.methodology || "Desenvolvimento do conteúdo com exemplos práticos.",
+        conclusion: "Revisão dos pontos chave e reflexão."
+      },
+      suggestedActivity: lesson.reflectionQuestions?.join('\n') || "Atividade prática em sala."
+    });
   };
 
   const loadTeacherProfile = async () => {
@@ -829,6 +1021,7 @@ export const AdminDashboard: React.FC = () => {
         <nav className="space-y-2 flex-1 overflow-y-auto">
           <button onClick={() => setActiveTab('submissions')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'submissions' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <BookOpen size={18}/> Atividades Diárias </button>
           <button onClick={() => setActiveTab('lessons_list')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'lessons_list' ? 'bg-amber-500 text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <Library size={18}/> Plano de Aulas </button>
+          <button onClick={() => setActiveTab('question_bank')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'question_bank' ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <Database size={18}/> Banco de Questões </button>
           {!isSuper && ( <button onClick={() => setActiveTab('exam_generator')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'exam_generator' ? 'bg-purple-600 text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <BrainCircuit size={18}/> Gerar Avaliação </button> )}
           <button onClick={() => setActiveTab('students')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'students' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <Users size={18}/> Carômetro </button>
           <button onClick={() => setActiveTab('reports')} className={`w-full flex items-center gap-3 p-4 rounded-2xl text-xs font-black uppercase transition-all ${activeTab === 'reports' ? 'bg-tocantins-blue text-white shadow-xl' : 'text-slate-400 hover:bg-white/5'}`}> <BarChart3 size={18}/> Relatórios (IA) </button>
@@ -909,6 +1102,56 @@ export const AdminDashboard: React.FC = () => {
                        <option value="all">Todas</option>
                        {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
+                 </div>
+              </div>
+           )}
+
+           {/* ABAS: BANCO DE QUESTÕES */}
+           {activeTab === 'question_bank' && (
+              <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in">
+                 <div className="bg-white p-6 rounded-[32px] border shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <div>
+                        <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Banco de Questões</h2>
+                        <p className="text-sm text-slate-500 mt-1">Aqui estão todas as questões geradas e salvas no banco de dados. Elas podem ser reutilizadas em avaliações futuras.</p>
+                      </div>
+                      <button 
+                        onClick={handleSeedDatabase}
+                        disabled={loading}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        {loading ? <Loader2 className="animate-spin" size={18}/> : <Database size={18}/>}
+                        Popular Banco Automaticamente
+                      </button>
+                    </div>
+                    
+                    {questionBank.length === 0 ? (
+                      <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-bold">Nenhuma questão no banco. Clique no botão acima para gerar atividades para todas as aulas.</div>
+                    ) : (
+                      <div className="space-y-4">
+                        {questionBank.map((q) => (
+                          <div key={q.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                            <div className="flex items-center gap-3 mb-3">
+                               <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${q.type === 'objective' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                                 {q.type === 'objective' ? 'Objetiva' : 'Discursiva'}
+                               </span>
+                               <span className="text-xs font-bold text-slate-500 uppercase">{q.subject} • {q.topic}</span>
+                            </div>
+                            <p className="text-slate-800 font-medium">{q.question_text}</p>
+                            
+                            {q.type === 'objective' && q.options && (
+                              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {Object.entries(q.options).map(([key, val]) => (
+                                  <div key={key} className={`p-3 rounded-xl text-sm border ${q.correct_option === key ? 'bg-green-50 border-green-200 text-green-800 font-bold' : 'bg-white border-slate-200 text-slate-600'}`}>
+                                    <span className="uppercase mr-2 opacity-50">{key})</span> {String(val)}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                  </div>
               </div>
            )}
@@ -1021,17 +1264,26 @@ export const AdminDashboard: React.FC = () => {
                                 <h4 className="font-black text-tocantins-blue text-xs uppercase mb-4">{b.title}</h4>
                                 <div className="space-y-2 flex-1">
                                    {b.lessons.filter(l => isSuper || l.subject === teacherSubject).map(l => (
-                                      <button 
-                                        key={l.id} 
-                                        onClick={() => handleViewLessonPlan(l, grade.id)}
-                                        disabled={isGeneratingPlan}
-                                        className="w-full text-left group transition-all"
-                                      >
-                                        <div className="text-[10px] font-bold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-start gap-2 group-hover:bg-amber-50 group-hover:border-amber-200 group-hover:-translate-y-0.5 transition-all">
-                                           <div className="w-1.5 h-1.5 rounded-full bg-tocantins-blue mt-1.5 shrink-0 group-hover:bg-amber-500"></div>
-                                           <span className="whitespace-normal break-words leading-tight group-hover:text-amber-900">{l.title}</span>
-                                        </div>
-                                      </button>
+                                      <div key={l.id} className="flex items-center gap-2">
+                                        <button 
+                                          onClick={() => handleViewLessonPlan(l, grade.id)}
+                                          disabled={isGeneratingPlan}
+                                          className="flex-1 text-left group transition-all"
+                                        >
+                                          <div className="text-[10px] font-bold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-start gap-2 group-hover:bg-amber-50 group-hover:border-amber-200 group-hover:-translate-y-0.5 transition-all">
+                                             <div className="w-1.5 h-1.5 rounded-full bg-tocantins-blue mt-1.5 shrink-0 group-hover:bg-amber-500"></div>
+                                             <span className="whitespace-normal break-words leading-tight group-hover:text-amber-900">{l.title}</span>
+                                          </div>
+                                        </button>
+                                        <button
+                                          onClick={() => handleGenerateAndSaveActivity(l)}
+                                          disabled={isGeneratingActivityFor === l.id || savedActivities.includes(l.id)}
+                                          className={`p-2 rounded-xl border transition-all ${savedActivities.includes(l.id) ? 'bg-green-50 border-green-200 text-green-600' : 'bg-white border-slate-200 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'}`}
+                                          title={savedActivities.includes(l.id) ? 'Atividade já salva no banco' : 'Gerar Atividade com IA e Salvar'}
+                                        >
+                                          {isGeneratingActivityFor === l.id ? <Loader2 size={16} className="animate-spin" /> : savedActivities.includes(l.id) ? <CheckCircle2 size={16} /> : <Sparkles size={16} />}
+                                        </button>
+                                      </div>
                                    ))}
                                 </div>
                              </div>

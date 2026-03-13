@@ -61,3 +61,43 @@ export interface Grade {
   color: string;
   bimesters: Bimester[];
 }
+
+export interface Question {
+  id: string;
+  subject: string;
+  topic: string;
+  type: 'objective' | 'discursive';
+  difficulty: 'Fácil' | 'Médio' | 'Difícil';
+  question_text: string;
+  options?: { a: string; b: string; c: string; d: string; e: string };
+  correct_option?: string;
+  explanation?: string;
+  created_at: string;
+}
+
+export interface DBActivity {
+  id: string;
+  lesson_id: string;
+  title: string;
+  created_at: string;
+  questions?: Question[];
+}
+
+export interface ActivitySubmission {
+  id: string;
+  student_id: string;
+  activity_id: string;
+  status: 'pending' | 'completed' | 'graded';
+  score?: number;
+  submitted_at: string;
+}
+
+export interface ActivityAnswer {
+  id: string;
+  submission_id: string;
+  question_id: string;
+  answer_text: string;
+  is_correct?: boolean;
+  score?: number;
+  feedback?: string;
+}

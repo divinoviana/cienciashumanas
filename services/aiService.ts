@@ -136,6 +136,56 @@ export const generateActivityImage = async (prompt: string): Promise<string> => 
 };
 
 // Nova função para gerar a atividade 5+2 para o aluno
+export const generateFallbackActivity = (title: string, theory: string, defaultQuestions?: string[]): LessonActivity => {
+  const q1 = defaultQuestions && defaultQuestions[0] ? defaultQuestions[0] : `Explique com suas palavras o conceito principal de: ${title.split(':')[0]}.`;
+  const q2 = defaultQuestions && defaultQuestions[1] ? defaultQuestions[1] : `Como o tema "${title}" se relaciona com a sociedade atual?`;
+
+  return {
+    objectives: [
+      {
+        id: "obj1",
+        question: `Sobre o tema "${title}", qual das alternativas abaixo melhor resume o conceito principal abordado na teoria?`,
+        options: {
+          a: "A teoria destaca a importância de analisar criticamente os fatos e contextos apresentados.",
+          b: "O tema abordado não possui relevância prática para a compreensão da sociedade.",
+          c: "A teoria se limita a descrever eventos isolados sem conexão com o presente.",
+          d: "Os conceitos apresentados são exclusivos de outras áreas do conhecimento.",
+          e: "A análise do tema deve ser feita de forma superficial e sem embasamento."
+        },
+        correctOption: "a"
+      },
+      {
+        id: "obj2",
+        question: "De acordo com os conceitos fundamentais desta aula, é correto afirmar que:",
+        options: {
+          a: "As mudanças sociais ocorrem de forma isolada e sem influência do passado.",
+          b: "A compreensão do tema exige uma visão ampla e conectada com diferentes realidades.",
+          c: "O estudo deste assunto serve apenas para memorização de dados históricos ou geográficos.",
+          d: "Não há evidências que comprovem a importância deste tema na atualidade.",
+          e: "A teoria apresentada contraria os princípios básicos das Ciências Humanas."
+        },
+        correctOption: "b"
+      },
+      {
+        id: "obj3",
+        question: "Qual a principal importância de compreender os conceitos discutidos nesta aula?",
+        options: {
+          a: "Permitir a repetição de informações sem necessidade de reflexão crítica.",
+          b: "Desconsiderar as diferentes perspectivas e focar em uma única visão de mundo.",
+          c: "Desenvolver uma análise crítica e aprofundada sobre as dinâmicas sociais e humanas.",
+          d: "Limitar o conhecimento a fatos que não interferem no nosso cotidiano.",
+          e: "Ignorar as transformações históricas e focar apenas no momento presente."
+        },
+        correctOption: "c"
+      }
+    ],
+    discursives: [
+      { id: "disc1", question: q1 },
+      { id: "disc2", question: q2 }
+    ]
+  };
+};
+
 export const generateLessonActivity = async (lessonTitle: string, theory: string): Promise<LessonActivity> => {
   return callAIWithRetry(async () => {
     const ai = getAIClient();
