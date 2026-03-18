@@ -2,8 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 const getSupabaseClient = () => {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_ANON_KEY;
+  const url = (import.meta as any).env?.VITE_SUPABASE_URL || process.env.SUPABASE_URL || (import.meta as any).env?.SUPABASE_URL;
+  const key = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || (import.meta as any).env?.SUPABASE_ANON_KEY;
 
   if (!url || !key) {
     // Retornamos um objeto que falha graciosamente em vez de travar no boot
@@ -25,11 +25,31 @@ export const supabase = new Proxy({} as any, {
     
     if (!instance) {
       // Se não houver instância, retornamos uma função que retorna um erro para evitar quebras
-      return (...args: any[]) => ({ 
-        data: null, 
-        error: { message: "Supabase não configurado. Verifique as variáveis de ambiente." },
-        from: () => ({ select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: true }) }) }) })
-      });
+      if (prop === 'channel') {
+        return () => ({
+          on: () => ({ subscribe: () => {} }),
+          subscribe: () => {},
+          unsubscribe: () => {}
+        });
+      }
+      if (prop === 'removeChannel') {
+        return () => {};
+      }
+      
+      return (...args: any[]) => {
+        const chainable = {
+          select: () => chainable,
+          insert: () => chainable,
+          update: () => chainable,
+          delete: () => chainable,
+          eq: () => chainable,
+          order: () => chainable,
+          single: () => Promise.resolve({ data: null, error: { message: "Supabase não configurado." } }),
+          maybeSingle: () => Promise.resolve({ data: null, error: { message: "Supabase não configurado." } }),
+          then: (resolve: any) => resolve({ data: null, error: { message: "Supabase não configurado." } })
+        };
+        return chainable;
+      };
     }
 
     const value = instance[prop];

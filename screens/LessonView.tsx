@@ -52,7 +52,13 @@ export const LessonView: React.FC = () => {
           .maybeSingle();
 
         if (actError || !actData) {
-          setLessonActivity(null); // Not found
+          // Se não encontrou no banco, gera uma atividade de fallback na hora para o aluno não ficar sem nada
+          const { generateFallbackActivity } = await import('../services/aiService');
+          const fallbackActivity = generateFallbackActivity(foundLesson.title, foundLesson.theory, foundLesson.questions);
+          setLessonActivity({
+            ...fallbackActivity,
+            dbActivityId: 'fallback' // ID temporário
+          } as any);
           return;
         }
 
@@ -63,8 +69,14 @@ export const LessonView: React.FC = () => {
           .eq('activity_id', actData.id)
           .order('order_num', { ascending: true });
 
-        if (qError || !qData) {
-          setLessonActivity(null);
+        if (qError || !qData || qData.length === 0) {
+          // Se encontrou a atividade mas não encontrou as questões, gera o fallback
+          const { generateFallbackActivity } = await import('../services/aiService');
+          const fallbackActivity = generateFallbackActivity(foundLesson.title, foundLesson.theory, foundLesson.questions);
+          setLessonActivity({
+            ...fallbackActivity,
+            dbActivityId: 'fallback' // ID temporário
+          } as any);
           return;
         }
 
