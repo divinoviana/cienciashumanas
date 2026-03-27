@@ -676,9 +676,9 @@ export const AdminDashboard: React.FC = () => {
       if (reportTarget === 'student') {
         const student = students.find(s => s.id === selectedReportStudent);
         if (!student) throw new Error("Selecione um aluno.");
-        studentName = student.name;
+        studentName = student.name.trim();
         schoolClass = student.school_class;
-        targetGrades = submissions.filter(s => s.student_name === student.name).map(s => Number(s.score));
+        targetGrades = submissions.filter(s => s.student_name === student.name.trim()).map(s => Number(s.score));
         const { data: notes } = await supabase.from('student_notes').select('content').eq('student_id', student.id).eq('teacher_subject', teacherSubject);
         targetNotes = (notes || []).map(n => n.content);
       } else {
@@ -1164,7 +1164,7 @@ export const AdminDashboard: React.FC = () => {
                     <div key={sub.id} className="bg-white rounded-[32px] border shadow-sm p-6 flex flex-col md:flex-row justify-between items-center gap-6 hover:shadow-md transition-all group">
                        <div className="flex items-center gap-4 flex-1">
                           <div className="w-14 h-14 rounded-2xl bg-slate-100 overflow-hidden border-2 border-white shadow-md">
-                            <StudentAvatar studentId={students.find(s => s.name === sub.student_name)?.id} studentName={sub.student_name} />
+                            <StudentAvatar studentId={students.find(s => s.name.trim() === sub.student_name)?.id} studentName={sub.student_name} />
                           </div>
                           <div>
                               <h3 className="font-black text-slate-800 uppercase text-sm">{sub.student_name}</h3>
@@ -1360,7 +1360,7 @@ export const AdminDashboard: React.FC = () => {
                                    <td className="p-6"> 
                                       <div className="flex items-center gap-3"> 
                                           <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden"> 
-                                              <StudentAvatar studentId={students.find(s => s.name === sub.student_name)?.id} studentName={sub.student_name} />
+                                              <StudentAvatar studentId={students.find(s => s.name.trim() === sub.student_name)?.id} studentName={sub.student_name} />
                                           </div> 
                                           <span className="text-xs font-bold text-slate-700 uppercase">{sub.student_name}</span> 
                                       </div> 

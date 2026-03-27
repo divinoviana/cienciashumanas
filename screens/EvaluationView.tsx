@@ -52,9 +52,9 @@ export const EvaluationView: React.FC = () => {
       const { data: existingSub } = await supabase
         .from('submissions')
         .select('score')
-        .eq('student_name', student.name)
+        .eq('student_name', student.name.trim())
         .eq('subject', examData.subject)
-        .eq('lesson_title', examTitle)
+        .eq('lesson_title', examTitle.trim())
         .maybeSingle();
 
       if (existingSub) {
@@ -96,9 +96,9 @@ export const EvaluationView: React.FC = () => {
 
     try {
       const { error } = await supabase.from('submissions').insert([{
-        student_name: student.name,
-        school_class: student.school_class,
-        lesson_title: `Avaliação Bimestral: ${exam.bimester}º Bimestre`,
+        student_name: student.name.trim(),
+        school_class: student.school_class.trim(),
+        lesson_title: `Avaliação Bimestral: ${exam.bimester}º Bimestre`.trim(),
         subject: exam.subject,
         score: finalScore,
         content: exam.questions.map((q: any) => ({

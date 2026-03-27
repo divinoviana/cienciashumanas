@@ -29,8 +29,8 @@ export const MyActivities: React.FC = () => {
       const { data, error } = await supabase
         .from('submissions')
         .select('*')
-        .eq('student_name', name)
-        .eq('school_class', sClass)
+        .eq('student_name', name.trim())
+        .eq('school_class', sClass.trim())
         .order('created_at', { ascending: false });
 
       if (error) throw error;

@@ -30,18 +30,18 @@ export const Home: React.FC = () => {
       .from('bimonthly_exams')
       .select('*')
       .eq('grade', Number(student.grade))
-      .or(`school_class.is.null,school_class.eq."${student.school_class}"`)
+      .or(`school_class.is.null,school_class.eq."${student.school_class.trim()}"`)
       .order('created_at', { ascending: false });
 
     // Busca o que o aluno já concluiu (para filtrar)
     const { data: subData } = await supabase
       .from('submissions')
       .select('lesson_title')
-      .eq('student_name', student.name)
+      .eq('student_name', student.name.trim())
       .like('lesson_title', 'Avaliação Bimestral%');
       
     if (examData) setExams(examData);
-    if (subData) setFinishedExamTitles(subData.map(s => s.lesson_title));
+    if (subData) setFinishedExamTitles(subData.map(s => s.lesson_title.trim()));
     if (examError) console.error("Erro ao buscar avaliações:", examError);
   };
 
@@ -51,7 +51,7 @@ export const Home: React.FC = () => {
   // Filtra apenas provas que ele AINDA NÃO fez
   const pendingExams = exams.filter(e => {
     const title = `Avaliação Bimestral: ${e.bimester}º Bimestre`;
-    return !finishedExamTitles.includes(title);
+    return !finishedExamTitles.includes(title.trim());
   });
 
   return (

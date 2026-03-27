@@ -43,7 +43,7 @@ export const GradeView: React.FC = () => {
         .select('*')
         .eq('grade', Number(id))
         .eq('subject', subjectKey)
-        .or(`school_class.is.null,school_class.eq."${student.school_class}"`)
+        .or(`school_class.is.null,school_class.eq."${student.school_class.trim()}"`)
         .order('created_at', { ascending: false });
 
       if (examError) console.error("Erro ao carregar exames:", examError);
@@ -51,11 +51,11 @@ export const GradeView: React.FC = () => {
       const { data: subsData } = await supabase
         .from('submissions')
         .select('lesson_title')
-        .eq('student_name', student.name)
+        .eq('student_name', student.name.trim())
         .eq('subject', subjectKey);
 
       setExams(examsData || []);
-      setUserSubmissions(subsData?.map(s => s.lesson_title) || []);
+      setUserSubmissions(subsData?.map(s => s.lesson_title.trim()) || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -182,7 +182,7 @@ export const GradeView: React.FC = () => {
                     </div>
                     <div className="divide-y divide-slate-50">
                       {filteredLessons.map((lesson) => {
-                        const isLessonDone = userSubmissions.includes(lesson.title);
+                        const isLessonDone = userSubmissions.includes(lesson.title.trim());
                         return (
                           <Link key={lesson.id} to={`/lesson/${lesson.id}`} className="flex items-center p-6 hover:bg-slate-50/80 transition group">
                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all mr-5 ${isLessonDone ? 'bg-green-50 text-green-500' : 'bg-slate-100 text-slate-400 group-hover:bg-tocantins-blue group-hover:text-white group-hover:rotate-6'}`}>
