@@ -255,23 +255,25 @@ export const generateLessonActivity = async (lessonTitle: string, theory: string
       required: ["objectives", "discursives"]
     };
 
-    const prompt = `Com base na aula "${lessonTitle}" e na teoria fornecida: "${theory.substring(0, 2000)}", gere:
-    1. EXATAMENTE 5 questões de múltipla escolha (objetivas) com 5 alternativas cada (A-E).
-    2. EXATAMENTE 2 questões discursivas (abertas) que exijam reflexão crítica do aluno.
+    const prompt = `Atue como um professor especialista em Ciências Humanas. Com base na aula "${lessonTitle}" e na teoria fornecida: "${theory.substring(0, 3000)}", crie uma atividade aprofundada, analítica e desafiadora para alunos do Ensino Médio.
+    
+    A atividade deve conter:
+    1. EXATAMENTE 5 questões de múltipla escolha (objetivas) com 5 alternativas cada (A-E). As questões NÃO devem ser de mera memorização. Elas devem exigir interpretação de texto, análise crítica, relação com o contexto histórico/social atual e raciocínio lógico. Use situações-problema, casos práticos ou trechos de textos de apoio fictícios nas questões.
+    2. EXATAMENTE 2 questões discursivas (abertas) complexas que exijam reflexão crítica profunda, argumentação embasada e conexão do tema com a realidade contemporânea do aluno.
     3. UM CONTEÚDO VISUAL COMPLEMENTAR (opcional, mas recomendado se o tema permitir):
        - Se for 'chart': Gere dados para um gráfico (bar, line ou pie) com 'title' e 'data' (array de {name, value}).
        - Se for 'table': Gere uma tabela com 'title', 'headers' e 'rows'.
        - Se for 'crossword': Gere uma palavra cruzada com 'grid' (array 2D de letras/espaços) e 'clues' (across/down com number, clue, answer, row, col).
     
-    As questões devem ser desafiadoras e adequadas ao Ensino Médio.`;
+    As questões devem ter o nível de exigência do ENEM (Exame Nacional do Ensino Médio), sendo muito bem elaboradas, contextualizadas e aprofundadas.`;
 
     // Run text and image generation in parallel
     const [response, imageUrlResult] = await Promise.allSettled([
       ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-pro-preview",
         contents: prompt,
         config: {
-          systemInstruction: "Você é um professor avaliador experiente. Siga rigorosamente o schema JSON. Para palavras cruzadas, garanta que o grid seja consistente com as dicas.",
+          systemInstruction: "Você é um professor avaliador experiente e conteudista de alto nível. Siga rigorosamente o schema JSON. Crie questões profundas e que exijam pensamento crítico.",
           responseMimeType: "application/json",
           responseSchema: schema,
         },
@@ -317,13 +319,23 @@ export const generateLessonPlan = async (subject: string, theme: string, grade: 
       required: ["title", "objectives", "theory", "methodology", "suggestedActivity"]
     };
 
-    const prompt = `Gere plano de aula: ${subject}, ${grade}ª série. Tema: "${theme}".`;
+    const prompt = `Atue como um professor especialista e mentor pedagógico de alto nível. Crie um plano de aula detalhado, profundo e engajador para a disciplina de ${subject}, voltado para alunos da ${grade}ª série do Ensino Médio. O tema da aula é: "${theme}".
+    
+    O plano de aula deve conter:
+    - title: Um título criativo e instigante para a aula.
+    - objectives: 3 a 4 objetivos de aprendizagem claros, focados no desenvolvimento de habilidades cognitivas superiores (análise, síntese, avaliação).
+    - theory: Uma explicação teórica aprofundada, rica em detalhes, conceitos-chave, contexto histórico/social e exemplos práticos que conectem o tema à realidade dos alunos. Inclua também pontos de resumo em tópicos (bullet points) que sejam altamente interessantes, diretos e ideais para o professor copiar na lousa (quadro negro).
+    - methodology: Um roteiro passo a passo para uma aula de 50 minutos, dividido em:
+        - introduction (10 min): Como engajar os alunos inicialmente (ex: uma pergunta provocadora, um dilema, uma imagem).
+        - development (30 min): Como aprofundar a teoria de forma interativa e dialógica.
+        - conclusion (10 min): Como sistematizar o conhecimento e fechar a aula de forma memorável.
+    - suggestedActivity: Uma sugestão de atividade prática, dinâmica ou de reflexão para fixação do conteúdo.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-pro-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Professor mentor. Plano de 50 min.",
+        systemInstruction: "Você é um mentor pedagógico experiente. Crie um plano de aula de 50 minutos que seja profundo, engajador e prático. A teoria deve ser excelente, com tópicos perfeitos para a lousa.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
@@ -402,16 +414,22 @@ export const generateBimonthlyEvaluation = async (
       required: ["subject", "grade", "bimester", "questions"]
     };
 
-    const prompt = `Gere avaliação de ${subjectName}, ${grade}ª Série, ${bimester}º Bimestre. Tópicos: ${topics.join(', ')}.
-    Inclua um recurso visual (gráfico, tabela ou palavra cruzada) que ajude na interpretação das questões.`;
+    const prompt = `Atue como um elaborador de provas do ENEM. Gere uma avaliação bimestral de alto nível para ${subjectName}, ${grade}ª Série, ${bimester}º Bimestre. 
+    Tópicos a serem abordados: ${topics.join(', ')}.
+    
+    A avaliação deve conter:
+    - 5 questões de múltipla escolha (A-E) inéditas, complexas e contextualizadas.
+    - Cada questão deve conter um 'textFragment' (texto base, situação-problema, trecho de artigo ou documento histórico) que sirva de apoio para a resolução.
+    - As alternativas devem ser bem elaboradas, com distratores plausíveis que exijam raciocínio crítico, e não apenas memorização.
+    - Inclua um recurso visual (gráfico, tabela ou palavra cruzada) que seja fundamental para a interpretação de pelo menos uma das questões.`;
 
     // Run text and image generation in parallel
     const [response, imageUrlResult] = await Promise.allSettled([
       ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-pro-preview",
         contents: prompt,
         config: {
-          systemInstruction: "Gere 5 questões ENEM. Siga rigorosamente o schema JSON.",
+          systemInstruction: "Você é um especialista em avaliação educacional. Gere 5 questões no padrão ENEM, exigindo alta capacidade de leitura e interpretação. Siga rigorosamente o schema JSON.",
           responseMimeType: "application/json",
           responseSchema: schema,
         },
@@ -463,13 +481,24 @@ export const evaluateActivities = async (
       required: ["generalComment", "corrections"]
     };
 
-    const prompt = `Corrija as respostas do aluno para a aula ${lessonTitle}. Respostas: ${JSON.stringify(questionsAndAnswers)}`;
+    const prompt = `Atue como um tutor acadêmico rigoroso e construtivo. Avalie as respostas do aluno para a aula "${lessonTitle}".
+    
+    Contexto teórico da aula: "${theoryContext.substring(0, 2000)}"
+    
+    Respostas do aluno: ${JSON.stringify(questionsAndAnswers)}
+    
+    Para cada questão, forneça:
+    - isCorrect: true se a resposta estiver correta ou parcialmente correta com bom embasamento, false caso contrário.
+    - score: Uma nota de 0 a 10 para a resposta.
+    - feedback: Um feedback detalhado, explicando o porquê da nota, corrigindo possíveis erros conceituais e sugerindo pontos de melhoria ou aprofundamento.
+    
+    No 'generalComment', faça um balanço geral do desempenho do aluno nesta atividade, destacando pontos fortes e fracos.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-pro-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Tutor acadêmico. Avalie brevemente as respostas.",
+        systemInstruction: "Você é um tutor acadêmico experiente. Forneça feedbacks construtivos, detalhados e que estimulem o aprendizado do aluno.",
         responseMimeType: "application/json",
         responseSchema: schema,
       },
@@ -492,13 +521,26 @@ export const generatePedagogicalSummary = async (
 ): Promise<string> => {
   return callAIWithRetry(async () => {
     const ai = getAIClient();
-    const prompt = `Relatório ${context} - ${data.subject}. Dados: ${JSON.stringify(data)}`;
+    const prompt = `Atue como um Coordenador Pedagógico especialista em análise de dados educacionais. 
+    Gere um relatório analítico e estratégico em formato Markdown para o contexto: ${context === 'INDIVIDUAL' ? `Aluno: ${data.studentName}` : `Turma: ${data.schoolClass}`}.
+    Disciplina: ${data.subject}.
+    
+    Dados disponíveis:
+    - Notas obtidas: ${JSON.stringify(data.grades)}
+    - Observações/Anotações do professor: ${JSON.stringify(data.notes)}
+    
+    O relatório deve conter:
+    1. **Análise de Desempenho:** Interpretação das notas (média, evolução, pontos de atenção).
+    2. **Síntese Qualitativa:** O que as anotações do professor revelam sobre o engajamento, dificuldades e potencialidades.
+    3. **Plano de Ação:** 3 a 5 recomendações pedagógicas práticas e acionáveis para melhorar o aprendizado (seja para o aluno específico ou para a turma como um todo).
+    
+    Seja profissional, empático e focado em soluções.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-pro-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Coordenador Pedagógico. Gere um resumo Markdown."
+        systemInstruction: "Você é um Coordenador Pedagógico experiente. Gere relatórios analíticos, bem estruturados em Markdown, focados no desenvolvimento do aluno/turma."
       }
     });
     
