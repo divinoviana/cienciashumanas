@@ -212,6 +212,16 @@ export const AdminDashboard: React.FC = () => {
       const activity = await generateLessonActivity(lesson.title, lesson.theory);
       
       // 2. Save to DB
+      // Delete old activity and questions if they exist to overwrite them
+      if (savedActivities.includes(lesson.id)) {
+        const { data: oldAct } = await supabase.from('activities').select('id').eq('lesson_id', lesson.id).single();
+        if (oldAct) {
+          await supabase.from('activity_questions').delete().eq('activity_id', oldAct.id);
+          await supabase.from('activities').delete().eq('id', oldAct.id);
+        }
+        await supabase.from('question_bank').delete().eq('topic', lesson.title).eq('subject', lesson.subject);
+      }
+
       // Create Activity
       const { data: actData, error: actError } = await supabase
         .from('activities')
@@ -266,6 +276,7 @@ export const AdminDashboard: React.FC = () => {
 
       alert('Atividade gerada e salva com sucesso no banco de dados!');
       fetchSavedActivities();
+      fetchQuestionBank();
     } catch (e: any) {
       console.error(e);
       alert("Erro ao gerar/salvar atividade: " + e.message);
